@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>쇼핑몰 주문엑셀 변환기</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic","맑은 고딕",Arial,sans-serif; margin:0; background:#f4f6f9; color:#1f2937; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+  .back {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 17px; font-weight: 700; color: #1d4ed8; text-decoration: none;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+    padding: 10px 18px; margin-bottom: 10px;
+  }
+  .back:hover { background: #dbeafe; }
+  h1 { font-size: 20px; margin: 8px 0 4px; }
+  .sub { color:#6b7280; font-size:13px; margin-bottom:16px; }
+  .panel { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+  .panel h2 { font-size:14px; margin:0 0 10px; color:#374151; }
+  .drop {
+    border:2px dashed #cbd5e1; border-radius:12px; padding:34px 20px; text-align:center;
+    color:#64748b; font-size:14px; cursor:pointer; background:#fafbfc;
+  }
+  .drop.on { border-color:#3b82f6; background:#eff6ff; color:#1d4ed8; }
+  button { padding:8px 14px; border:1px solid #d1d5db; border-radius:7px; background:#fff; font-size:13px; cursor:pointer; font-family:inherit; }
+  button:hover { background:#f3f4f6; }
+  button.primary { background:#2563eb; border-color:#2563eb; color:#fff; font-weight:600; }
+  button.green { background:#059669; border-color:#059669; color:#fff; font-weight:600; }
+  .maprow { display:grid; grid-template-columns: 130px 1fr; gap:6px 10px; align-items:center; max-width:520px; }
+  .maprow label { font-size:13px; color:#374151; }
+  .maprow label b { color:#dc2626; }
+  select { padding:6px 8px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; width:100%; }
+  .tablebox { overflow-x:auto; border:1px solid #e5e7eb; border-radius:10px; }
+  table { border-collapse:collapse; width:100%; min-width:800px; background:#fff; }
+  th { background:#f9fafb; font-size:12px; color:#4b5563; border-bottom:2px solid #e5e7eb; padding:7px 8px; text-align:left; white-space:nowrap; }
+  td { border-bottom:1px solid #f0f1f4; padding:6px 8px; font-size:12.5px; white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; align-items:center; }
+  .hint { font-size:12.5px; color:#6b7280; background:#f0f7ff; border:1px solid #dbeafe; border-radius:8px; padding:10px 12px; line-height:1.7; margin-bottom:14px; }
+  #step2, #step3 { display:none; }
+  .ok { color:#059669; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">🏠 메인화면으로 가기</a>
+  <h1>🔄 쇼핑몰 주문엑셀 변환기</h1>
+  <div class="sub">지마켓·스마트스토어·쿠팡 등 어떤 쇼핑몰의 주문 엑셀이든 열 이름을 자동 인식해서 한진/플레이오토 양식으로 변환합니다.</div>
+
+  <div class="hint">
+    💡 사용 순서: ① 주문 엑셀 파일을 올리면 → ② 열 매핑을 자동 추천해 주고(틀리면 직접 고르면 됨) → ③ 변환 결과를 확인하고 엑셀로 내려받거나 송장 생성기로 넘깁니다.
+  </div>
+
+  <div class="panel" id="step1">
+    <h2>① 주문 엑셀 업로드</h2>
+    <div class="drop" id="drop" onclick="document.getElementById('file').click()">
+      📂 여기를 클릭하거나 주문 엑셀 파일(.xlsx / .csv)을 끌어다 놓으세요
+    </div>
+    <input type="file" id="file" accept=".xlsx,.xls,.csv" style="display:none">
+    <div id="fileInfo" style="margin-top:8px;font-size:13px;color:#374151"></div>
+  </div>
+
+  <div class="panel" id="step2">
+    <h2>② 열 매핑 확인 <span style="font-weight:400;color:#9ca3af">(자동 추천됨 — 틀린 항목만 바꿔주세요. <b style="color:#dc2626">*</b>는 필수)</span></h2>
+    <div class="maprow" id="maprows"></div>
+    <div class="toolbar">
+      <button class="primary" onclick="applyMapping()">③ 변환 미리보기</button>
+    </div>
+  </div>
+
+  <div class="panel" id="step3">
+    <h2>③ 변환 결과 <span id="convCount" class="ok"></span></h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>#</th><th>품목명</th><th>수량</th><th>받는 분</th><th>전화번호</th><th>우편번호</th><th>주소</th><th>배송메세지</th></tr></thead>
+        <tbody id="preview"></tbody>
+      </table>
+    </div>
+    <div class="toolbar">
+      <button class="primary" onclick="downloadHanjin()">⬇ 한진 대량등록 엑셀</button>
+      <button class="green" onclick="downloadPlayauto()">⬇ 플레이오토 업로드 엑셀</button>
+      <button onclick="sendToGenerator()">📦 송장 엑셀 생성기로 보내기 (우편번호 채우기·수정 가능)</button>
+    </div>
+  </div>
+</div>
+
+<script src="../lib/xlsx.full.min.js"></script>
+<script>
+"use strict";
+function el(id){ return document.getElementById(id); }
+
+/* 대상 필드와, 쇼핑몰별 열 이름 후보 (앞에 있을수록 우선) */
+var TARGETS = [
+  { key:"name",  label:"받는 분", required:true,
+    cands:["수취인명","수취인이름","수령인명","수령인","수취인","받는분","받는사람","받으시는 분","구매자명","주문자명"] },
+  { key:"phone", label:"전화번호", required:true,
+    cands:["수취인연락처1","수취인 휴대폰","수취인휴대폰","수령인휴대폰","수취인전화번호","수령인연락처","수취인연락처","휴대폰번호","휴대전화","연락처1","전화번호","연락처"] },
+  { key:"zip",   label:"우편번호", required:false, cands:["우편번호","우편 번호","zip"] },
+  { key:"addr",  label:"주소", required:true,
+    cands:["통합배송지","수취인주소","수령인주소","배송지주소","배송지 주소","주소","배송지"] },
+  { key:"item",  label:"품목명", required:true,
+    cands:["상품명","제품명","품목명","주문상품명","노출상품명(옵션명)","등록상품명"] },
+  { key:"opt",   label:"옵션명(합침)", required:false,
+    cands:["옵션정보","옵션명","옵션","등록옵션명","선택옵션"] },
+  { key:"qty",   label:"수량", required:true, cands:["수량","구매수량","주문수량","구매수(수량)"] },
+  { key:"memo",  label:"배송메세지", required:false,
+    cands:["배송메세지","배송메시지","배송요청사항","요청사항","배송시 요구사항","배송메모"] },
+  { key:"price", label:"금액", required:false,
+    cands:["최종 상품별 총 주문금액","상품별 총 주문금액","결제금액","총 결제금액","판매금액","상품금액","판매가","결제액"] },
+];
+
+var headers = [], dataRows = [], converted = [];
+
+/* ---- 파일 로드 ---- */
+el("file").addEventListener("change", function(e){ if(e.target.files[0]) loadFile(e.target.files[0]); });
+var drop = el("drop");
+drop.addEventListener("dragover", function(e){ e.preventDefault(); drop.classList.add("on"); });
+drop.addEventListener("dragleave", function(){ drop.classList.remove("on"); });
+drop.addEventListener("drop", function(e){
+  e.preventDefault(); drop.classList.remove("on");
+  if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+function loadFile(f){
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try {
+      var wb = XLSX.read(ev.target.result, {type:"array"});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+      if(!aoa.length){ alert("빈 파일입니다."); return; }
+      // 헤더 행 찾기: 처음 10행 중 후보 키워드와 가장 많이 일치하는 행
+      var best = 0, bestScore = -1;
+      for(var r=0; r<Math.min(10, aoa.length); r++){
+        var score = 0;
+        aoa[r].forEach(function(cell){
+          var s = String(cell).trim();
+          if(!s) return;
+          TARGETS.forEach(function(t){ if(t.cands.some(function(c){ return s.indexOf(c) !== -1 || c.indexOf(s) !== -1; })) score++; });
+        });
+        if(score > bestScore){ bestScore = score; best = r; }
+      }
+      headers = aoa[best].map(function(h){ return String(h).trim(); });
+      dataRows = aoa.slice(best+1).filter(function(row){ return row.some(function(c){ return String(c).trim(); }); });
+      el("fileInfo").textContent = "✅ " + f.name + " — 헤더 " + (best+1) + "행, 데이터 " + dataRows.length + "건 (시트: " + wb.SheetNames[0] + ")";
+      buildMappingUI();
+      el("step2").style.display = "block";
+      el("step3").style.display = "none";
+    } catch(err){ alert("파일을 읽지 못했습니다: " + err.message); }
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+/* ---- 매핑 UI ---- */
+function guessColumn(target){
+  for(var ci=0; ci<target.cands.length; ci++){
+    for(var h=0; h<headers.length; h++){
+      if(headers[h] && headers[h] === target.cands[ci]) return h;
+    }
+  }
+  for(var ci2=0; ci2<target.cands.length; ci2++){
+    for(var h2=0; h2<headers.length; h2++){
+      if(headers[h2] && headers[h2].indexOf(target.cands[ci2]) !== -1) return h2;
+    }
+  }
+  return -1;
+}
+
+function buildMappingUI(){
+  var box = el("maprows"); box.innerHTML = "";
+  TARGETS.forEach(function(t){
+    var lab = document.createElement("label");
+    lab.innerHTML = t.label + (t.required ? " <b>*</b>" : "");
+    var sel = document.createElement("select");
+    sel.id = "map_" + t.key;
+    var opt0 = document.createElement("option");
+    opt0.value = "-1"; opt0.textContent = "(사용 안 함)";
+    sel.appendChild(opt0);
+    headers.forEach(function(h, i){
+      if(!h) return;
+      var o = document.createElement("option");
+      o.value = i; o.textContent = h;
+      sel.appendChild(o);
+    });
+    sel.value = String(guessColumn(t));
+    box.appendChild(lab); box.appendChild(sel);
+  });
+}
+
+/* ---- 변환 ---- */
+function applyMapping(){
+  var map = {};
+  var missing = [];
+  TARGETS.forEach(function(t){
+    map[t.key] = parseInt(el("map_" + t.key).value, 10);
+    if(t.required && map[t.key] < 0) missing.push(t.label);
+  });
+  if(missing.length){ alert("필수 항목의 열을 골라주세요: " + missing.join(", ")); return; }
+
+  converted = dataRows.map(function(row){
+    var get = function(k){ return map[k] >= 0 ? String(row[map[k]] == null ? "" : row[map[k]]).trim() : ""; };
+    var item = get("item");
+    var opt = get("opt");
+    if(opt && opt !== item) item = item + (item ? " / " : "") + opt;
+    var phone = get("phone").replace(/[^\d-]/g, "");
+    if(/^1[016789]\d{7,8}$/.test(phone)) phone = "0" + phone;  // 엑셀이 앞 0을 지운 경우 복원
+    var zip = get("zip").replace(/[^\d-]/g, "");
+    if(/^\d{4}$/.test(zip)) zip = "0" + zip;
+    return { item:item, qty:get("qty") || "1", name:get("name"), phone:phone,
+             zip:zip, addr:get("addr"), memo:get("memo"), price:get("price").replace(/[^\d.]/g,"") };
+  }).filter(function(r){ return r.name || r.addr || r.item; });
+
+  var tb = el("preview"); tb.innerHTML = "";
+  converted.forEach(function(r, i){
+    var tr = document.createElement("tr");
+    tr.innerHTML = "<td>"+(i+1)+"</td><td>"+esc(r.item)+"</td><td>"+esc(r.qty)+"</td><td>"+esc(r.name)+"</td><td>"+esc(r.phone)+"</td><td>"+esc(r.zip)+"</td><td>"+esc(r.addr)+"</td><td>"+esc(r.memo)+"</td>";
+    tb.appendChild(tr);
+  });
+  el("convCount").textContent = "— " + converted.length + "건 변환됨";
+  el("step3").style.display = "block";
+}
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+
+function todayStr(){
+  var d = new Date();
+  return String(d.getFullYear()) + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0");
+}
+function numOr(v, fb){ var n = parseFloat(String(v).replace(/,/g,"")); return isNaN(n) ? fb : n; }
+
+function downloadHanjin(){
+  if(!converted.length){ alert("변환된 데이터가 없습니다."); return; }
+  var aoa = [["출고번호", null, "품목명", "수량", "받으시는 분", "받으시는 분 전화", "받는분총주소", "특기사항"]];
+  converted.forEach(function(r, i){
+    aoa.push([i+1, null, r.item, numOr(r.qty,1), r.name, r.phone, r.addr, r.memo]);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{wch:8},{wch:4},{wch:35},{wch:6},{wch:12},{wch:15},{wch:50},{wch:14}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "sheet1");
+  XLSX.writeFile(wb, "한진대량등록_" + todayStr() + ".xlsx");
+}
+
+var PA_HEADERS = ["쇼핑몰주문번호","주문자명","주문자ID","주문자휴대폰번호","주문자전화번호","수령자명","수령자영문명","수령자휴대폰번호","수령자전화번호","우편번호","주소","배송메세지","쇼핑몰 상품코드","판매자 관리코드","온라인 상품명","옵션명","주문수량","SKU코드(세트코드)","건별출고수량","배송처 코드","금액","공급가","원가","실결제금액","할인금액","추가구매 옵션명","추가구매 SKU코드(세트코드)","추가구매 건별출고수량","추가구매 주문수량","배송방법","배송비","사은품","개인통관번호","주문일","결제완료일","국가코드","결제통화"];
+
+function downloadPlayauto(){
+  if(!converted.length){ alert("변환된 데이터가 없습니다."); return; }
+  var noZip = converted.filter(function(r){ return !r.zip; }).length;
+  if(noZip && !confirm("우편번호가 없는 행이 " + noZip + "건 있습니다 (플레이오토 필수).\n'송장 엑셀 생성기로 보내기'에서 우편번호를 채운 뒤 생성할 수도 있습니다.\n\n그래도 생성할까요?")) return;
+  var prefix = todayStr();
+  var aoa = [PA_HEADERS.slice()];
+  converted.forEach(function(r, i){
+    var row = new Array(PA_HEADERS.length).fill(null);
+    row[0] = prefix + "-" + String(i+1).padStart(3,"0");
+    row[1] = r.name; row[3] = r.phone; row[5] = r.name; row[7] = r.phone;
+    row[9] = r.zip; row[10] = r.addr; row[11] = r.memo;
+    row[14] = r.item; row[16] = numOr(r.qty,1); row[20] = numOr(r.price,0);
+    row[29] = "무료배송"; row[30] = 0; row[33] = prefix;
+    aoa.push(row);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  var cols = PA_HEADERS.map(function(){ return {wch:14}; });
+  cols[10] = {wch:45}; cols[14] = {wch:30};
+  ws["!cols"] = cols;
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "업로드 양식");
+  XLSX.writeFile(wb, "플레이오토신규주문_" + todayStr() + ".xlsx");
+}
+
+/* 송장 엑셀 생성기의 임시저장 형식으로 넘겨서 이어서 편집 */
+function sendToGenerator(){
+  if(!converted.length){ alert("변환된 데이터가 없습니다."); return; }
+  try {
+    var KEY = "hanjin_playauto_tool_v1";
+    var draft = {};
+    try { draft = JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){}
+    var existing = (draft.rows || []).filter(function(r){
+      return ["item","qty","name","phone","zip","addr","memo","price"].some(function(f){ return String(r[f]||"").trim(); });
+    });
+    draft.rows = existing.concat(converted);
+    localStorage.setItem(KEY, JSON.stringify(draft));
+    location.href = "invoice-excel.html";
+  } catch(e){ alert("전달 실패: " + e.message); }
+}
+</script>
+</body>
+</html>
