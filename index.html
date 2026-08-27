@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>업무 반자동 모음 260827</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+    margin: 0; background: #0f172a; color: #e2e8f0; min-height: 100vh;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 20px 80px; }
+  header { margin-bottom: 30px; }
+  h1 { font-size: 26px; margin: 0 0 6px; color: #f8fafc; }
+  .sub { color: #94a3b8; font-size: 14px; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+    padding: 18px 16px; display: flex; flex-direction: column; gap: 8px;
+    min-height: 140px; position: relative; transition: transform .12s, border-color .12s;
+  }
+  a.card { text-decoration: none; color: inherit; cursor: pointer; }
+  a.card:hover { transform: translateY(-3px); border-color: #3b82f6; }
+  .num {
+    position: absolute; top: 14px; right: 14px; font-size: 12px;
+    color: #475569; font-weight: 700;
+  }
+  .icon { font-size: 26px; }
+  .name { font-size: 15px; font-weight: 700; color: #f1f5f9; }
+  .desc { font-size: 12.5px; color: #94a3b8; line-height: 1.5; flex: 1; }
+  .go { font-size: 12.5px; color: #60a5fa; font-weight: 600; }
+  .card.empty { opacity: .45; border-style: dashed; }
+  .card.empty .name { color: #64748b; }
+  footer { margin-top: 36px; font-size: 12px; color: #475569; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧰 업무 반자동 모음 <span style="color:#3b82f6">260827</span></h1>
+    <div class="sub">반복 업무를 반자동으로 처리하는 도구 모음 · 카드를 클릭하면 실행됩니다</div>
+  </header>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>
+    입력한 데이터는 브라우저 안에서만 처리되며 서버에 저장되지 않습니다.
+    · 새 도구 추가 요청은 관리자에게.
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* 도구 등록: 여기에 한 줄 추가하면 카드가 생깁니다.
+   { icon, name, desc, url }  — url이 없으면 "준비중" 슬롯 */
+var TOOLS = [
+  { icon: "🚚", name: "CJ대한통운 대량 배송조회",
+    desc: "송장번호를 한꺼번에 붙여넣으면 전체 배송상태를 실시간 조회하고, 배송완료가 아닌 건만 추려서 엑셀로 저장합니다.",
+    url: "tools/cj-tracking.html" },
+  { icon: "📦", name: "송장 엑셀 생성기 (한진·플레이오토)",
+    desc: "발송 정보를 입력하거나 카톡 메시지를 붙여넣으면 한진택배 대량등록 엑셀과 플레이오토 업로드 엑셀을 자동 생성합니다.",
+    url: "tools/invoice-excel.html" },
+];
+var TOTAL_SLOTS = 20;
+
+var grid = document.getElementById("grid");
+for (var i = 0; i < TOTAL_SLOTS; i++) {
+  var t = TOOLS[i];
+  var card;
+  if (t && t.url) {
+    card = document.createElement("a");
+    card.className = "card";
+    card.href = t.url;
+    card.innerHTML =
+      '<span class="num">' + String(i+1).padStart(2,"0") + '</span>' +
+      '<div class="icon">' + t.icon + '</div>' +
+      '<div class="name">' + t.name + '</div>' +
+      '<div class="desc">' + t.desc + '</div>' +
+      '<div class="go">실행 →</div>';
+  } else {
+    card = document.createElement("div");
+    card.className = "card empty";
+    card.innerHTML =
+      '<span class="num">' + String(i+1).padStart(2,"0") + '</span>' +
+      '<div class="icon">➕</div>' +
+      '<div class="name">준비중</div>' +
+      '<div class="desc">다음 도구가 들어올 자리입니다.</div>';
+  }
+  grid.appendChild(card);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CJ대한통운 대량 배송조회</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic","맑은 고딕",Arial,sans-serif; margin:0; background:#f4f6f9; color:#1f2937; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 60px; }
+  .back { font-size: 13px; color: #6b7280; text-decoration: none; }
+  .back:hover { color: #2563eb; }
+  h1 { font-size: 20px; margin: 8px 0 4px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 16px; }
+  .panel { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+  textarea { width:100%; border:1px solid #d1d5db; border-radius:7px; padding:10px; font-size:13px; font-family:Consolas,monospace; resize:vertical; }
+  button { padding:8px 14px; border:1px solid #d1d5db; border-radius:7px; background:#fff; font-size:13px; cursor:pointer; font-family:inherit; }
+  button:hover { background:#f3f4f6; }
+  button.primary { background:#2563eb; border-color:#2563eb; color:#fff; font-weight:600; }
+  button.primary:hover { background:#1d4ed8; }
+  button.primary:disabled { background:#93c5fd; border-color:#93c5fd; cursor:default; }
+  button.green { background:#059669; border-color:#059669; color:#fff; font-weight:600; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+  .progressbox { display:none; margin-top:12px; }
+  .bar { height:10px; background:#e5e7eb; border-radius:6px; overflow:hidden; }
+  .bar > div { height:100%; width:0%; background:#2563eb; transition:width .3s; }
+  .ptext { font-size:12.5px; color:#6b7280; margin-top:5px; }
+  .summary { display:none; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+  .stat { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:10px 16px; font-size:13px; }
+  .stat b { display:block; font-size:20px; margin-top:2px; }
+  .stat.ok b { color:#059669; } .stat.warn b { color:#d97706; } .stat.err b { color:#dc2626; }
+  table { border-collapse:collapse; width:100%; background:#fff; }
+  th { background:#f9fafb; font-size:12px; color:#4b5563; border-bottom:2px solid #e5e7eb; padding:8px; text-align:left; }
+  td { border-bottom:1px solid #f0f1f4; padding:7px 8px; font-size:13px; }
+  tr.undone { background:#fef9c3; }
+  tr.error td { color:#dc2626; }
+  .tablebox { overflow-x:auto; border:1px solid #e5e7eb; border-radius:10px; display:none; }
+  .filterrow { display:none; margin:0 0 8px; font-size:13px; color:#374151; align-items:center; gap:6px; }
+  .hint { font-size:12.5px; color:#6b7280; background:#f0f7ff; border:1px solid #dbeafe; border-radius:8px; padding:10px 12px; line-height:1.7; margin-bottom:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← 업무 반자동 모음으로</a>
+  <h1>🚚 CJ대한통운 대량 배송조회</h1>
+  <div class="sub">송장번호를 한꺼번에 붙여넣으면 전체 배송상태를 실시간으로 조회합니다.</div>
+
+  <div class="hint">
+    💡 엑셀 열을 그대로 복사해 붙여넣어도 되고, 쉼표·줄바꿈·공백 어떤 구분자든 숫자 10자리 이상이면 송장번호로 인식합니다.
+  </div>
+
+  <div class="panel">
+    <textarea id="input" rows="8" placeholder="540951090206
+530959411541
+530959411493
+..."></textarea>
+    <div class="toolbar">
+      <button class="primary" id="runBtn" onclick="run()">🔍 조회 시작</button>
+      <button onclick="document.getElementById('input').value=''">지우기</button>
+      <span id="parseCount" style="font-size:12.5px;color:#6b7280"></span>
+    </div>
+    <div class="progressbox" id="progressbox">
+      <div class="bar"><div id="barfill"></div></div>
+      <div class="ptext" id="ptext"></div>
+    </div>
+  </div>
+
+  <div class="summary" id="summary" style="display:none">
+    <div class="stat">전체<b id="stTotal">0</b></div>
+    <div class="stat ok">배송완료<b id="stDone">0</b></div>
+    <div class="stat warn">미배송<b id="stUndone">0</b></div>
+    <div class="stat err">조회불가/오류<b id="stErr">0</b></div>
+  </div>
+
+  <div class="filterrow" id="filterrow">
+    <label><input type="checkbox" id="onlyUndone" onchange="renderTable()"> 배송완료 아닌 건만 보기</label>
+    <span style="flex:1"></span>
+    <button onclick="copyUndone()">📋 미배송 송장번호 복사</button>
+    <button class="green" onclick="downloadExcel()">⬇ 결과 엑셀 다운로드</button>
+  </div>
+
+  <div class="tablebox" id="tablebox">
+    <table>
+      <thead><tr><th>#</th><th>송장번호</th><th>배송상태</th><th>최근 처리시각</th><th>위치</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="../lib/xlsx.full.min.js"></script>
+<script>
+"use strict";
+var results = [];
+var CHUNK = 10;
+
+function el(id){ return document.getElementById(id); }
+
+function extractInvoices(){
+  var nums = el("input").value.match(/\d{10,14}/g) || [];
+  var seen = {}, out = [];
+  nums.forEach(function(n){ if(!seen[n]){ seen[n]=1; out.push(n); } });
+  return out;
+}
+el("input").addEventListener("input", function(){
+  var n = extractInvoices().length;
+  el("parseCount").textContent = n ? n + "개 송장번호 인식됨" : "";
+});
+
+async function run(){
+  var invoices = extractInvoices();
+  if(!invoices.length){ alert("송장번호를 붙여넣어 주세요. (숫자 10자리 이상)"); return; }
+  el("runBtn").disabled = true;
+  el("progressbox").style.display = "block";
+  results = [];
+  var done = 0;
+  try {
+    for(var i=0; i<invoices.length; i+=CHUNK){
+      var chunk = invoices.slice(i, i+CHUNK);
+      var resp = await fetch("/api/cj-track", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({invoices: chunk})
+      });
+      if(!resp.ok){
+        var err = {};
+        try { err = await resp.json(); } catch(e){}
+        throw new Error(err.error || ("서버 오류 " + resp.status));
+      }
+      var data = await resp.json();
+      results = results.concat(data.results);
+      done += chunk.length;
+      el("barfill").style.width = Math.round(done/invoices.length*100) + "%";
+      el("ptext").textContent = done + " / " + invoices.length + " 조회 중...";
+      renderTable(); renderSummary();
+    }
+    el("ptext").textContent = "✅ " + invoices.length + "건 조회 완료";
+  } catch(e){
+    el("ptext").textContent = "⚠️ 조회 실패: " + e.message;
+    alert("조회 중 오류가 발생했습니다:\n" + e.message);
+  }
+  el("runBtn").disabled = false;
+  renderTable(); renderSummary();
+}
+
+function isDone(r){ return r.status === "배송완료"; }
+function isErr(r){ return r.status === "조회불가" || r.status === "ERROR"; }
+
+function renderSummary(){
+  el("summary").style.display = "flex";
+  el("filterrow").style.display = "flex";
+  el("stTotal").textContent = results.length;
+  el("stDone").textContent = results.filter(isDone).length;
+  el("stUndone").textContent = results.filter(function(r){ return !isDone(r) && !isErr(r); }).length;
+  el("stErr").textContent = results.filter(isErr).length;
+}
+
+function renderTable(){
+  el("tablebox").style.display = "block";
+  var only = el("onlyUndone").checked;
+  var tb = el("tbody"); tb.innerHTML = "";
+  results.forEach(function(r, i){
+    if(only && isDone(r)) return;
+    var tr = document.createElement("tr");
+    if(isErr(r)) tr.className = "error";
+    else if(!isDone(r)) tr.className = "undone";
+    tr.innerHTML = "<td>" + (i+1) + "</td><td>" + r.invcNo + "</td><td>" + r.status +
+                   "</td><td>" + (r.time||"") + "</td><td>" + (r.where||"") + "</td>";
+    tb.appendChild(tr);
+  });
+}
+
+function copyUndone(){
+  var list = results.filter(function(r){ return !isDone(r); }).map(function(r){ return r.invcNo; });
+  if(!list.length){ alert("미배송 건이 없습니다."); return; }
+  navigator.clipboard.writeText(list.join("\n")).then(function(){
+    alert(list.length + "건 복사됨");
+  });
+}
+
+function downloadExcel(){
+  if(!results.length){ alert("조회 결과가 없습니다."); return; }
+  var header = ["송장번호","배송상태","최근 처리시각","위치"];
+  var undone = results.filter(function(r){ return !isDone(r); });
+  var toAoA = function(list){
+    return [header].concat(list.map(function(r){ return [r.invcNo, r.status, r.time, r.where]; }));
+  };
+  var wb = XLSX.utils.book_new();
+  var ws1 = XLSX.utils.aoa_to_sheet(toAoA(undone));
+  var ws2 = XLSX.utils.aoa_to_sheet(toAoA(results));
+  ws1["!cols"] = ws2["!cols"] = [{wch:16},{wch:12},{wch:20},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws1, "미배송");
+  XLSX.utils.book_append_sheet(wb, ws2, "전체조회결과");
+  var d = new Date();
+  var ymd = String(d.getFullYear()) + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0");
+  XLSX.writeFile(wb, "CJ배송조회_" + ymd + ".xlsx");
+}
+</script>
+</body>
+</html>

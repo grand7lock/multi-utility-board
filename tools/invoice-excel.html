@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>송장 엑셀 생성기 (한진 · 플레이오토)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+    margin: 0; background: #f4f6f9; color: #1f2937;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 16px; }
+  .panel {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 14px;
+  }
+  .panel h2 { font-size: 14px; margin: 0 0 10px; color: #374151; }
+  .settings { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  .settings label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 3px; }
+  .settings input, .settings select {
+    padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;
+  }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
+  button {
+    padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 7px;
+    background: #fff; font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #f3f4f6; }
+  button.primary { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 600; }
+  button.primary:hover { background: #1d4ed8; }
+  button.green { background: #059669; border-color: #059669; color: #fff; font-weight: 600; }
+  button.green:hover { background: #047857; }
+  button.danger { color: #b91c1c; }
+  .spacer { flex: 1; }
+  #saveState { font-size: 12px; color: #9ca3af; }
+  .tablebox { overflow-x: auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; min-width: 1100px; }
+  th {
+    background: #f9fafb; font-size: 12px; color: #4b5563; font-weight: 600;
+    border-bottom: 2px solid #e5e7eb; border-right: 1px solid #eef0f3;
+    padding: 8px 6px; text-align: center; white-space: nowrap;
+  }
+  th .tag { display: block; font-weight: 400; font-size: 10px; color: #9ca3af; }
+  td { border-bottom: 1px solid #f0f1f4; border-right: 1px solid #f5f6f8; padding: 0; }
+  td.rownum { text-align: center; font-size: 12px; color: #9ca3af; width: 36px; background: #fafbfc; }
+  td input {
+    width: 100%; border: none; padding: 7px 8px; font-size: 13px;
+    font-family: inherit; background: transparent; outline: none;
+  }
+  td input:focus { background: #eff6ff; }
+  tr.rowempty td input { color: #374151; }
+  .delbtn {
+    border: none; background: none; color: #d1d5db; cursor: pointer;
+    font-size: 14px; padding: 4px 8px;
+  }
+  .delbtn:hover { color: #ef4444; }
+  .hint {
+    font-size: 12.5px; color: #6b7280; background: #f0f7ff; border: 1px solid #dbeafe;
+    border-radius: 8px; padding: 10px 12px; line-height: 1.7; margin-bottom: 14px;
+  }
+  .hint b { color: #1d4ed8; }
+  footer { margin-top: 18px; font-size: 11.5px; color: #9ca3af; line-height: 1.6; }
+  .count { font-size: 13px; color: #374151; margin-left: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📦 송장 엑셀 생성기</h1>
+  <div class="sub">발송 정보를 한 번만 입력하면 <b>한진택배 대량등록</b> 엑셀과 <b>플레이오토 신규주문 업로드</b> 엑셀을 각각 생성합니다.</div>
+
+  <div class="hint">
+    💡 <b>엑셀에서 붙여넣기 지원:</b> 다른 엑셀에서 범위를 복사한 뒤, 아래 표에서 시작할 칸을 클릭하고 <b>Ctrl+V</b> 하면 여러 행/열이 한꺼번에 입력됩니다. (열 순서: 품목명 → 수량 → 받는 분 → 전화번호 → 우편번호 → 주소 → 특기사항 → 금액)<br>
+    · <b>우편번호</b>와 <b>금액</b>은 플레이오토 업로드에만 필요합니다. 한진 엑셀만 쓸 경우 비워도 됩니다.<br>
+    · 입력 내용은 이 브라우저에 자동 임시저장되어 창을 닫았다 열어도 유지됩니다.
+  </div>
+
+  <div class="panel">
+    <h2>📩 메시지로 한번에 추가</h2>
+    <div style="font-size:12.5px;color:#6b7280;margin-bottom:8px;line-height:1.6">
+      카톡/문자 메시지를 그대로 복사해서 아래에 붙여넣고 <b>분석해서 추가</b>를 누르세요. 여러 건을 한꺼번에 붙여넣어도 됩니다.<br>
+      인식 형식 예: <span style="color:#9ca3af">[한진 발송] → 품목명 → 수량(1개) → 받는 분 → 전화번호 → 주소</span>
+    </div>
+    <textarea id="msgInput" rows="7" style="width:100%;border:1px solid #d1d5db;border-radius:7px;padding:10px;font-size:13px;font-family:inherit;resize:vertical" placeholder="[한진 발송]
+BENW 국산 인슐린 보냉 파우치, 블랙
+1개
+
+류운경
+010-9241-8316
+경상남도 양산시 동면 금오13길 71 (동면, e편한세상 남양산 2차) 217동 1904호"></textarea>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+      <button class="primary" onclick="parseMessages()">🔍 분석해서 추가</button>
+      <button onclick="el('msgInput').value=''">지우기</button>
+      <span id="parseResult" style="font-size:12.5px;color:#059669"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>공통 설정</h2>
+    <div class="settings">
+      <div>
+        <label>주문번호 접두어 (플레이오토 쇼핑몰주문번호 자동생성용)</label>
+        <input id="setPrefix" type="text" style="width:200px">
+      </div>
+      <div>
+        <label>주문일 (플레이오토)</label>
+        <input id="setOrderDate" type="text" style="width:110px" placeholder="YYYYMMDD">
+      </div>
+      <div>
+        <label>배송방법 (플레이오토)</label>
+        <select id="setShipMethod">
+          <option>무료배송</option>
+          <option>선결제</option>
+          <option>착불</option>
+        </select>
+      </div>
+      <div>
+        <label>금액 기본값 (비었을 때)</label>
+        <input id="setDefaultPrice" type="number" value="0" style="width:90px">
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button onclick="addRows(1)">＋ 행 추가</button>
+    <button onclick="addRows(5)">＋ 5행 추가</button>
+    <button class="danger" onclick="clearAll()">전체 지우기</button>
+    <span class="count" id="rowCount"></span>
+    <span class="spacer"></span>
+    <span id="saveState"></span>
+    <button class="primary" onclick="downloadHanjin()">⬇ 한진 엑셀 다운로드</button>
+    <button class="green" onclick="downloadPlayauto()">⬇ 플레이오토 엑셀 다운로드</button>
+    <button onclick="downloadHanjin();setTimeout(downloadPlayauto,600)">둘 다 다운로드</button>
+  </div>
+
+  <div class="tablebox">
+    <table id="grid">
+      <thead>
+        <tr>
+          <th>No</th>
+          <th style="min-width:220px">품목명</th>
+          <th style="width:60px">수량</th>
+          <th style="min-width:110px">받는 분</th>
+          <th style="min-width:120px">전화번호</th>
+          <th style="width:80px">우편번호<span class="tag">플레이오토용</span></th>
+          <th style="min-width:280px">주소</th>
+          <th style="min-width:120px">특기사항<span class="tag">배송메세지</span></th>
+          <th style="width:90px">금액<span class="tag">플레이오토용</span></th>
+          <th style="width:36px"></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    · 한진 엑셀: 출고번호 / 품목명 / 수량 / 받으시는 분 / 받으시는 분 전화 / 받는분총주소 / 특기사항 (기존 대량등록 양식과 동일한 컬럼 배치)<br>
+    · 플레이오토 엑셀: 37개 컬럼 정식 양식(v14), 필수항목(쇼핑몰주문번호·주문자명·휴대폰·수령자명·휴대폰·우편번호·주소·상품명·주문수량·금액) 자동 채움. 1행이 항목 타이틀이므로 바로 업로드하면 됩니다.<br>
+    · 받는 분 이름과 전화번호는 플레이오토의 주문자/수령자 항목에 동일하게 들어갑니다.
+  </footer>
+</div>
+
+<script src="../lib/xlsx.full.min.js"></script>
+<script>
+"use strict";
+var FIELDS = ["item","qty","name","phone","zip","addr","memo","price"];
+var rows = [];
+var STORAGE_KEY = "hanjin_playauto_tool_v1";
+
+function todayStr(){
+  var d = new Date();
+  return String(d.getFullYear()) + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0");
+}
+
+function emptyRow(){ return {item:"",qty:"",name:"",phone:"",zip:"",addr:"",memo:"",price:""}; }
+
+function saveDraft(){
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      rows: rows,
+      prefix: el("setPrefix").value,
+      orderDate: el("setOrderDate").value,
+      shipMethod: el("setShipMethod").value,
+      defaultPrice: el("setDefaultPrice").value
+    }));
+    el("saveState").textContent = "임시저장됨 " + new Date().toLocaleTimeString();
+  } catch(e){}
+}
+var saveTimer = null;
+function scheduleSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 400); }
+
+function loadDraft(){
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return false;
+    var d = JSON.parse(raw);
+    if(d.rows && d.rows.length){ rows = d.rows; }
+    if(d.prefix) el("setPrefix").value = d.prefix;
+    if(d.orderDate) el("setOrderDate").value = d.orderDate;
+    if(d.shipMethod) el("setShipMethod").value = d.shipMethod;
+    if(d.defaultPrice !== undefined) el("setDefaultPrice").value = d.defaultPrice;
+    return true;
+  } catch(e){ return false; }
+}
+
+function el(id){ return document.getElementById(id); }
+
+function render(){
+  var tb = el("tbody");
+  tb.innerHTML = "";
+  rows.forEach(function(row, r){
+    var tr = document.createElement("tr");
+    var tdN = document.createElement("td");
+    tdN.className = "rownum"; tdN.textContent = r+1;
+    tr.appendChild(tdN);
+    FIELDS.forEach(function(f, c){
+      var td = document.createElement("td");
+      var inp = document.createElement("input");
+      inp.type = "text";
+      inp.value = row[f] == null ? "" : row[f];
+      inp.dataset.r = r; inp.dataset.f = f; inp.dataset.c = c;
+      inp.addEventListener("input", onCellInput);
+      inp.addEventListener("paste", onCellPaste);
+      inp.addEventListener("keydown", onCellKey);
+      td.appendChild(inp);
+      tr.appendChild(td);
+    });
+    var tdD = document.createElement("td");
+    var db = document.createElement("button");
+    db.className = "delbtn"; db.textContent = "✕"; db.title = "이 행 삭제";
+    db.onclick = function(){ rows.splice(r,1); if(!rows.length) rows.push(emptyRow()); render(); scheduleSave(); };
+    tdD.appendChild(db);
+    tr.appendChild(tdD);
+    tb.appendChild(tr);
+  });
+  el("rowCount").textContent = "총 " + rows.length + "행 / 입력됨 " + filledRows().length + "건";
+}
+
+function onCellInput(e){
+  var r = +e.target.dataset.r, f = e.target.dataset.f;
+  rows[r][f] = e.target.value;
+  el("rowCount").textContent = "총 " + rows.length + "행 / 입력됨 " + filledRows().length + "건";
+  scheduleSave();
+}
+
+function onCellKey(e){
+  if(e.key === "Enter"){
+    e.preventDefault();
+    var r = +e.target.dataset.r, c = +e.target.dataset.c;
+    if(r === rows.length - 1){ rows.push(emptyRow()); render(); }
+    focusCell(r+1, c);
+  }
+}
+
+function focusCell(r, c){
+  var inp = document.querySelector('input[data-r="'+r+'"][data-c="'+c+'"]');
+  if(inp){ inp.focus(); inp.select(); }
+}
+
+function onCellPaste(e){
+  var text = (e.clipboardData || window.clipboardData).getData("text/plain");
+  if(!text || (text.indexOf("\t") === -1 && text.indexOf("\n") === -1)) return; // 단일 값은 기본 붙여넣기
+  e.preventDefault();
+  var startR = +e.target.dataset.r, startC = +e.target.dataset.c;
+  var lines = text.replace(/\r/g,"").split("\n");
+  while(lines.length && lines[lines.length-1] === "") lines.pop();
+  lines.forEach(function(line, i){
+    var cells = line.split("\t");
+    var r = startR + i;
+    while(rows.length <= r) rows.push(emptyRow());
+    cells.forEach(function(v, j){
+      var c = startC + j;
+      if(c < FIELDS.length) rows[r][FIELDS[c]] = v.trim();
+    });
+  });
+  render(); scheduleSave();
+  focusCell(startR, startC);
+}
+
+function addRows(n){ for(var i=0;i<n;i++) rows.push(emptyRow()); render(); scheduleSave(); }
+
+function clearAll(){
+  if(!confirm("입력한 내용을 모두 지울까요?")) return;
+  rows = []; addRows(10);
+}
+
+function filledRows(){
+  return rows.filter(function(r){
+    return (r.item && r.item.trim()) || (r.name && r.name.trim()) || (r.addr && r.addr.trim());
+  });
+}
+
+function validate(list, forPlayauto){
+  var problems = [];
+  list.forEach(function(r, i){
+    var miss = [];
+    if(!r.item.trim()) miss.push("품목명");
+    if(!r.name.trim()) miss.push("받는 분");
+    if(!r.phone.trim()) miss.push("전화번호");
+    if(!r.addr.trim()) miss.push("주소");
+    if(forPlayauto && !r.zip.trim()) miss.push("우편번호");
+    if(miss.length) problems.push((i+1) + "번 행: " + miss.join(", ") + " 없음");
+  });
+  return problems;
+}
+
+function numOr(v, fallback){
+  var n = parseFloat(String(v).replace(/,/g,""));
+  return isNaN(n) ? fallback : n;
+}
+
+/* ===== 한진 대량등록 엑셀 =====
+   기존 양식과 동일: A출고번호 / B(빈칸) / C품목명 / D수량 / E받으시는 분 / F받으시는 분 전화 / G받는분총주소 / H특기사항 */
+function buildHanjinAoA(){
+  var list = filledRows();
+  var aoa = [["출고번호", null, "품목명", "수량", "받으시는 분", "받으시는 분 전화", "받는분총주소", "특기사항"]];
+  list.forEach(function(r, i){
+    aoa.push([ i+1, null, r.item.trim(), numOr(r.qty, 1), r.name.trim(), r.phone.trim(), r.addr.trim(), r.memo.trim() ]);
+  });
+  return aoa;
+}
+
+function downloadHanjin(){
+  var list = filledRows();
+  if(!list.length){ alert("입력된 발송 정보가 없습니다."); return; }
+  var problems = validate(list, false);
+  if(problems.length && !confirm("누락된 항목이 있습니다:\n\n" + problems.join("\n") + "\n\n그래도 생성할까요?")) return;
+  var ws = XLSX.utils.aoa_to_sheet(buildHanjinAoA());
+  ws["!cols"] = [{wch:8},{wch:4},{wch:35},{wch:6},{wch:12},{wch:15},{wch:50},{wch:14}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "sheet1");
+  XLSX.writeFile(wb, "한진대량등록_" + todayStr() + ".xlsx");
+}
+
+/* ===== 플레이오토 신규주문 업로드 엑셀 (v14, 37컬럼) =====
+   유의사항 원문 기준: 업로드 파일은 1행이 항목 타이틀, 2행부터 데이터. 타이틀명/순서 변경 불가. */
+var PA_HEADERS = ["쇼핑몰주문번호","주문자명","주문자ID","주문자휴대폰번호","주문자전화번호","수령자명","수령자영문명","수령자휴대폰번호","수령자전화번호","우편번호","주소","배송메세지","쇼핑몰 상품코드","판매자 관리코드","온라인 상품명","옵션명","주문수량","SKU코드(세트코드)","건별출고수량","배송처 코드","금액","공급가","원가","실결제금액","할인금액","추가구매 옵션명","추가구매 SKU코드(세트코드)","추가구매 건별출고수량","추가구매 주문수량","배송방법","배송비","사은품","개인통관번호","주문일","결제완료일","국가코드","결제통화"];
+
+function buildPlayautoAoA(){
+  var list = filledRows();
+  var prefix = el("setPrefix").value.trim() || todayStr();
+  var orderDate = el("setOrderDate").value.trim() || todayStr();
+  var shipMethod = el("setShipMethod").value;
+  var defPrice = numOr(el("setDefaultPrice").value, 0);
+  var aoa = [PA_HEADERS.slice()];
+  list.forEach(function(r, i){
+    var row = new Array(PA_HEADERS.length).fill(null);
+    var seq = String(i+1).padStart(3,"0");
+    row[0]  = prefix + "-" + seq;          // 쇼핑몰주문번호 (필수)
+    row[1]  = r.name.trim();               // 주문자명 (필수)
+    row[3]  = r.phone.trim();              // 주문자휴대폰번호 (필수)
+    row[5]  = r.name.trim();               // 수령자명 (필수)
+    row[7]  = r.phone.trim();              // 수령자휴대폰번호 (필수)
+    row[9]  = r.zip.trim();                // 우편번호 (필수)
+    row[10] = r.addr.trim();               // 주소 (필수)
+    row[11] = r.memo.trim();               // 배송메세지
+    row[14] = r.item.trim();               // 온라인 상품명 (필수)
+    row[16] = numOr(r.qty, 1);             // 주문수량 (필수)
+    row[20] = r.price.trim() === "" ? defPrice : numOr(r.price, defPrice); // 금액 (필수)
+    row[29] = shipMethod;                  // 배송방법
+    row[30] = 0;                           // 배송비
+    row[33] = orderDate;                   // 주문일
+    aoa.push(row);
+  });
+  return aoa;
+}
+
+function downloadPlayauto(){
+  var list = filledRows();
+  if(!list.length){ alert("입력된 발송 정보가 없습니다."); return; }
+  var problems = validate(list, true);
+  if(problems.length && !confirm("플레이오토 필수항목이 누락된 행이 있습니다 (업로드 실패 가능):\n\n" + problems.join("\n") + "\n\n그래도 생성할까요?")) return;
+  var ws = XLSX.utils.aoa_to_sheet(buildPlayautoAoA());
+  var cols = PA_HEADERS.map(function(){ return {wch:14}; });
+  cols[10] = {wch:45}; cols[14] = {wch:30};
+  ws["!cols"] = cols;
+  // 우편번호·전화번호·주문일은 텍스트로 유지 (앞자리 0 보존)
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "업로드 양식");
+  XLSX.writeFile(wb, "플레이오토신규주문_" + todayStr() + ".xlsx");
+}
+
+/* ===== 메시지 텍스트 → 발송 정보 파싱 ===== */
+var PHONE_RE = /0\d{1,2}[-.\s]?\d{3,4}[-.\s]?\d{4}/;
+
+function parseOneMessage(text){
+  var lines = text.split("\n").map(function(s){ return s.trim(); }).filter(function(s){
+    return s !== "" && !/^\[.*\]$/.test(s);   // 빈 줄, [한진 발송] 같은 헤더 줄 제외
+  });
+  if(!lines.length) return null;
+
+  // 전화번호 줄 찾기 (앵커)
+  var phoneIdx = -1, phone = "";
+  for(var i=0;i<lines.length;i++){
+    var m = lines[i].match(PHONE_RE);
+    if(m && lines[i].replace(PHONE_RE,"").trim().length <= 6){ phoneIdx = i; phone = m[0]; break; }
+  }
+  if(phoneIdx === -1) return null;
+
+  var name = phoneIdx >= 1 ? lines[phoneIdx-1] : "";
+  var addr = lines.slice(phoneIdx+1).join(" ");
+
+  // 전화번호 앞의 앞부분: 품목명 + 수량 (+ 받는 분)
+  var head = lines.slice(0, Math.max(phoneIdx-1, 0));
+  var qty = "";
+  var itemParts = [];
+  head.forEach(function(l){
+    var qm = l.match(/^(\d+)\s*개$/);          // "1개" 단독 줄
+    if(qm){ qty = qm[1]; return; }
+    var tail = l.match(/^(.+?)[\s,]+(\d+)\s*개$/); // "…블랙 1개" 붙은 형태
+    if(tail && !qty){ itemParts.push(tail[1].trim()); qty = tail[2]; return; }
+    itemParts.push(l);
+  });
+
+  return {
+    item: itemParts.join(" "), qty: qty || "1", name: name, phone: phone,
+    zip: "", addr: addr, memo: "", price: ""
+  };
+}
+
+function parseMessages(){
+  var text = el("msgInput").value;
+  if(!text.trim()){ alert("메시지를 붙여넣어 주세요."); return; }
+
+  // [헤더] 줄 기준으로 여러 건 분리, 헤더가 없으면 전화번호 개수 기준으로 분리
+  var chunks;
+  if(/^\s*\[.*\]\s*$/m.test(text)){
+    chunks = text.split(/^\s*\[.*\]\s*$/m).filter(function(c){ return c.trim(); });
+    // 헤더 자체가 구분자로 사라지므로 각 chunk가 한 건
+  } else {
+    // 전화번호가 여러 개면, 각 전화번호 다음의 "빈 줄 2개 이상"을 경계로 분리
+    chunks = text.split(/\n\s*\n\s*\n+/).filter(function(c){ return c.trim(); });
+  }
+
+  var parsed = [], failed = 0;
+  chunks.forEach(function(c){
+    var r = parseOneMessage(c);
+    if(r) parsed.push(r); else failed++;
+  });
+
+  if(!parsed.length){
+    alert("발송 정보를 인식하지 못했습니다.\n메시지에 전화번호(010-xxxx-xxxx)가 포함되어 있는지 확인해 주세요.");
+    return;
+  }
+
+  // 빈 행부터 채우고, 모자라면 행 추가
+  var pi = 0;
+  for(var i=0; i<rows.length && pi<parsed.length; i++){
+    var empty = FIELDS.every(function(f){ return !String(rows[i][f]||"").trim(); });
+    if(empty){ rows[i] = parsed[pi++]; }
+  }
+  while(pi < parsed.length) rows.push(parsed[pi++]);
+
+  render(); scheduleSave();
+  el("parseResult").textContent = "✅ " + parsed.length + "건 추가됨" + (failed ? " (인식 실패 " + failed + "건 — 직접 입력해 주세요)" : "");
+  el("msgInput").value = "";
+}
+
+/* ---- 테스트 훅 ---- */
+window.__test = {
+  parseOneMessage: parseOneMessage,
+  parseMessages: parseMessages,
+  buildHanjinAoA: buildHanjinAoA,
+  buildPlayautoAoA: buildPlayautoAoA,
+  setRows: function(data){ rows = data; render(); },
+  getRows: function(){ return rows; },
+  hanjinB64: function(){
+    var ws = XLSX.utils.aoa_to_sheet(buildHanjinAoA());
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "sheet1");
+    return XLSX.write(wb, {type:"base64", bookType:"xlsx"});
+  },
+  playautoB64: function(){
+    var ws = XLSX.utils.aoa_to_sheet(buildPlayautoAoA());
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "업로드 양식");
+    return XLSX.write(wb, {type:"base64", bookType:"xlsx"});
+  }
+};
+
+/* ---- 초기화 ---- */
+el("setPrefix").value = todayStr();
+el("setOrderDate").value = todayStr();
+if(!loadDraft() || !rows.length){ rows = []; for(var i=0;i<10;i++) rows.push(emptyRow()); }
+render();
+["setPrefix","setOrderDate","setShipMethod","setDefaultPrice"].forEach(function(id){
+  el(id).addEventListener("change", scheduleSave);
+});
+</script>
+</body>
+</html>
