@@ -71,6 +71,7 @@ module.exports = async (req, res) => {
     }
     return res.status(200).json({ results });
   } catch (e) {
-    return res.status(502).json({ error: "CJ대한통운 접속 실패: " + (e && e.message) });
+    const cause = e && e.cause ? (e.cause.code || "") + " " + (e.cause.message || "") : "";
+    return res.status(502).json({ error: "CJ대한통운 접속 실패: " + (e && e.message) + (cause ? " / " + cause : ""), region: process.env.VERCEL_REGION || "" });
   }
 };
