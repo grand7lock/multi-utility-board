@@ -138,9 +138,10 @@ BENW 국산 인슐린 보냉 파우치, 블랙
     <span class="count" id="rowCount"></span>
     <span class="spacer"></span>
     <span id="saveState"></span>
+    <button id="restoreBtn" style="display:none" onclick="restoreBatch()">↩ 방금 목록 복원</button>
     <button class="primary" onclick="downloadHanjin()">⬇ 한진 엑셀 다운로드</button>
     <button class="green" onclick="downloadPlayauto()">⬇ 플레이오토 엑셀 다운로드</button>
-    <button onclick="downloadHanjin();setTimeout(downloadPlayauto,600)">둘 다 다운로드</button>
+    <button onclick="downloadHanjin(true);setTimeout(downloadPlayauto,600)">둘 다 다운로드</button>
   </div>
 
   <div class="tablebox">
@@ -342,7 +343,23 @@ function buildHanjinAoA(){
   return aoa;
 }
 
-function downloadHanjin(){
+/* 일회용 사용: 엑셀을 만들고 나면 목록을 자동으로 비운다 (복원 버튼으로 되돌리기 가능) */
+var lastBatch = null;
+function finishBatch(){
+  lastBatch = rows;
+  rows = []; for(var i=0;i<10;i++) rows.push(emptyRow());
+  render(); saveDraft();
+  el("restoreBtn").style.display = "inline-block";
+  el("saveState").textContent = "✅ 저장 완료 — 목록을 비웠습니다";
+}
+function restoreBatch(){
+  if(!lastBatch) return;
+  rows = lastBatch; lastBatch = null;
+  render(); saveDraft();
+  el("restoreBtn").style.display = "none";
+}
+
+function downloadHanjin(keepRows){
   var list = filledRows();
   if(!list.length){ alert("입력된 발송 정보가 없습니다."); return; }
   var problems = validate(list, false);
@@ -352,6 +369,7 @@ function downloadHanjin(){
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "sheet1");
   XLSX.writeFile(wb, "한진대량등록_" + todayStr() + ".xlsx");
+  if(!keepRows) finishBatch();
 }
 
 /* ===== 플레이오토 신규주문 업로드 엑셀 (v14, 37컬럼) =====
@@ -400,6 +418,7 @@ function downloadPlayauto(){
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "업로드 양식");
   XLSX.writeFile(wb, "플레이오토신규주문_" + todayStr() + ".xlsx");
+  finishBatch();
 }
 
 /* ===== 우편번호 채우기 ===== */
