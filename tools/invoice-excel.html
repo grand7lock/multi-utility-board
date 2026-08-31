@@ -441,7 +441,8 @@ async function bulkZip(){
     if(String(r.addr||"").trim() && !String(r.zip||"").trim()) targets.push(i);
   });
   if(!targets.length){ alert("우편번호가 비어 있고 주소가 있는 행이 없습니다."); return; }
-  var key = el("setJusoKey").value.trim();
+  var key = el("setJusoKey").value.replace(/\s+/g, "");
+  el("setJusoKey").value = key;
   if(!key){
     alert("일괄 찾기에는 도로명주소 API 승인키가 필요합니다.\n\n공통 설정의 '무료 발급' 링크에서 1분이면 발급됩니다 (juso.go.kr).\n키 없이 쓰려면 각 행의 🔍 버튼으로 하나씩 검색할 수 있습니다.");
     return;
@@ -455,7 +456,13 @@ async function bulkZip(){
         body: JSON.stringify({ key: key, addrs: chunk.map(function(ri){ return rows[ri].addr; }) })
       });
       var data = await resp.json();
-      if(!resp.ok){ alert("조회 실패: " + (data.error || resp.status)); return; }
+      if(!resp.ok){
+        var msg = "조회 실패: " + (data.error || resp.status);
+        if(String(data.error||"").indexOf("KEY") !== -1){
+          msg += "\n\n👉 juso.go.kr의 승인키를 끝의 '=' 까지 포함해 전체 복사했는지 확인해 주세요.\n(승인키 정보 칸에서 더블클릭 대신 전체 드래그 또는 Ctrl+A로 복사)";
+        }
+        alert(msg); return;
+      }
       data.results.forEach(function(res, j){
         var ri = chunk[j];
         if(res.zip){ rows[ri].zip = res.zip; found++; }
