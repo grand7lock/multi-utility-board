@@ -52,7 +52,8 @@
   }
   .name { font-size: 15px; font-weight: 700; color: #111827; }
   .desc { font-size: 12.5px; color: #6b7280; line-height: 1.5; flex: 1; }
-  .go { font-size: 13px; color: #2563eb; font-weight: 700; }
+  /* 오른쪽 아래 화살표와 겹치지 않게 자리를 비워 둔다 */
+  .go { font-size: 13px; color: #2563eb; font-weight: 700; padding-right: 62px; }
   .card.empty { background: #fafafa; border-style: dashed; box-shadow: none; }
   .card.empty .icon { background: #f3f4f6; opacity: .6; }
   .card.empty .name { color: #9ca3af; }
@@ -61,7 +62,7 @@
   .card.dragging { opacity: .35; }
   .card.over { border-color: #2563eb; border-style: solid; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
   .move {
-    position: absolute; left: 12px; bottom: 10px; display: flex; gap: 4px;
+    position: absolute; right: 12px; bottom: 10px; display: flex; gap: 4px;
     opacity: 0; transition: opacity .12s;
   }
   .card:hover .move, .card:focus-within .move { opacity: 1; }
