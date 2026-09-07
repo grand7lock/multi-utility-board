@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+<title>중국어 캡처 번역기</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic","맑은 고딕",Arial,sans-serif; margin:0; background:#f4f6f9; color:#1f2937; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+  .back {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 17px; font-weight: 700; color: #1d4ed8; text-decoration: none;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+    padding: 10px 18px; margin-bottom: 10px;
+  }
+  .back:hover { background: #dbeafe; }
+  h1 { font-size: 20px; margin: 8px 0 4px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 16px; }
+  .panel { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+  .hint { font-size:12.5px; color:#6b7280; background:#f0f7ff; border:1px solid #dbeafe; border-radius:8px; padding:10px 12px; line-height:1.7; margin-bottom:14px; }
+  input[type=text], input[type=password], input[type=number] {
+    border:1px solid #d1d5db; border-radius:7px; padding:9px 10px; font-size:13px; font-family:inherit; width:100%;
+  }
+  input.mono { font-family:Consolas,monospace; }
+  button { padding:8px 14px; border:1px solid #d1d5db; border-radius:7px; background:#fff; font-size:13px; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  button:hover { background:#f3f4f6; }
+  button.primary { background:#2563eb; border-color:#2563eb; color:#fff; font-weight:600; }
+  button.primary:hover { background:#1d4ed8; }
+  button.primary:disabled { background:#93c5fd; border-color:#93c5fd; cursor:default; }
+  button.small { padding:5px 9px; font-size:12px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+  .err { color:#dc2626; font-size:13px; margin-top:8px; line-height:1.6; }
+  .err a { color:#dc2626; }
+  .muted { color:#6b7280; font-size:12.5px; }
+
+  /* 사용량 막대 */
+  .usage { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px; }
+  .stat { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:10px 16px; font-size:12.5px; color:#4b5563; }
+  .stat b { display:block; font-size:19px; margin-top:2px; color:#1f2937; }
+  .stat.over b { color:#dc2626; }
+
+  /* 번역 영역 */
+  .drop {
+    border:2px dashed #cbd5e1; border-radius:12px; background:#fff;
+    padding:56px 20px; text-align:center;
+  }
+  .drop h2 { font-size:18px; margin:0 0 10px; }
+  kbd { border:1px solid #d1d5db; border-radius:5px; padding:2px 7px; background:#f9fafb; font-family:Consolas,monospace; font-size:15px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width: 860px) { .grid { grid-template-columns:1fr; } }
+  .grid img { max-width:100%; max-height:70vh; border-radius:8px; display:block; }
+  .ttl { font-size:12px; font-weight:700; color:#6b7280; margin-bottom:10px; }
+  .para { display:flex; align-items:flex-start; gap:8px; padding:5px 6px; border-radius:7px; }
+  .para:hover { background:#f8fafc; }
+  .para p { margin:0; flex:1; font-size:14.5px; line-height:1.75; white-space:pre-wrap; word-break:break-word; }
+
+  /* 문장집 */
+  .fold { width:100%; display:flex; justify-content:space-between; align-items:center; text-align:left; font-weight:700; }
+  table { border-collapse:collapse; width:100%; margin-top:12px; }
+  th { background:#f9fafb; font-size:12px; color:#4b5563; border-bottom:2px solid #e5e7eb; padding:8px; text-align:left; }
+  td { border-bottom:1px solid #f0f1f4; padding:8px; font-size:13.5px; vertical-align:top; }
+  td.no { color:#9ca3af; width:38px; }
+  td.zh { font-weight:600; }
+  td.act { width:140px; white-space:nowrap; }
+  .spin { display:inline-block; width:14px; height:14px; border:2px solid #cbd5e1; border-top-color:#2563eb; border-radius:50%; animation:sp .8s linear infinite; vertical-align:-2px; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">🏠 메인화면으로 가기</a>
+  <h1>🀄 중국어 캡처 번역기</h1>
+  <div class="sub">중국어가 있는 화면을 캡처하고 붙여넣으면 한국어로 번역합니다.</div>
+
+  <!-- 1. 비밀번호 -->
+  <div class="panel" id="gate">
+    <div style="font-weight:700;margin-bottom:8px">비밀번호를 입력해주세요</div>
+    <div style="display:flex;gap:8px;max-width:320px">
+      <input type="password" id="pw" placeholder="비밀번호" autocomplete="off">
+      <button class="primary" id="pwBtn">들어가기</button>
+    </div>
+    <div class="err" id="pwErr" style="display:none">비밀번호가 틀렸습니다.</div>
+  </div>
+
+  <!-- 2. API 키 -->
+  <div class="panel" id="keySetup" style="display:none">
+    <div style="font-weight:700;font-size:15px;margin-bottom:6px">이 PC에서 처음 쓰시는군요. API 키를 넣어주세요</div>
+    <div class="muted" style="line-height:1.8;margin-bottom:10px">
+      아래 버튼으로 콘솔을 열고 <b>API keys → Create Key</b> 로 키를 만드세요.<br>
+      만든 직후 뜨는 <b>전체 키</b>를 복사해서 아래 칸에 붙여넣으면 됩니다.<br>
+      키는 <b>이 브라우저에만</b> 저장되고 서버에는 남지 않습니다. 요금도 본인 계정에서 나갑니다.
+    </div>
+    <div class="toolbar" style="margin-top:0;margin-bottom:10px">
+      <button onclick="window.open('https://console.anthropic.com/settings/keys','_blank')">🔑 콘솔 열기</button>
+    </div>
+    <input type="text" class="mono" id="keyInput" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false">
+    <div class="err" id="keyErr" style="display:none"></div>
+    <div class="toolbar">
+      <button class="primary" id="keyBtn">저장하고 시작</button>
+    </div>
+  </div>
+
+  <!-- 3. 본체 -->
+  <div id="main" style="display:none">
+
+    <div class="usage">
+      <div class="stat" id="stMonth">이번 달 사용<b id="stCount">0회</b></div>
+      <div class="stat" id="stCostBox">이번 달 비용 (추정)<b id="stCost">0원</b></div>
+      <div class="stat">한도<b id="stLimit">-</b></div>
+      <button class="small" id="setBtn">⚙ 설정</button>
+    </div>
+
+    <div class="panel" id="settings" style="display:none">
+      <div style="font-weight:700;margin-bottom:10px">설정</div>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">
+        <label style="flex:1;min-width:180px">
+          <div class="muted" style="margin-bottom:4px">이번 달 한도 (원) — 0이면 무제한</div>
+          <input type="number" id="limitInput" min="0" step="1000">
+        </label>
+        <label style="flex:1;min-width:180px">
+          <div class="muted" style="margin-bottom:4px">환율 (1달러당 원)</div>
+          <input type="number" id="rateInput" min="500" step="10">
+        </label>
+        <button class="primary" id="saveSet">저장</button>
+        <button id="changeKey">키 변경</button>
+        <button id="resetUsage">이번 달 사용량 초기화</button>
+      </div>
+      <div class="muted" style="margin-top:10px;line-height:1.7">
+        여기 숫자는 <b>이 브라우저에서 쓴 것만</b> 셉니다. 다른 PC는 따로 셉니다.<br>
+        토큰 수는 실제 값이지만 환율이 고정이라 <b>참고치</b>입니다.
+        실제 청구액은 <a href="https://console.anthropic.com/settings/billing" target="_blank">콘솔 Billing</a>이 정답입니다.
+      </div>
+    </div>
+
+    <div class="hint">
+      💡 <b>Win + Shift + S</b> 로 화면을 찍고, 이 페이지에서 <b>Ctrl + V</b> 를 누르세요.
+      이미지를 끌어다 놓거나 파일을 골라도 됩니다.
+      숫자·금액·품번·모델명은 원문 그대로 유지됩니다.
+    </div>
+
+    <!-- 붙여넣기 안내 -->
+    <div class="drop" id="drop">
+      <h2>화면을 캡처하고 <kbd>Ctrl</kbd> + <kbd>V</kbd> 를 누르세요</h2>
+      <div class="muted">윈도우는 <b>Win + Shift + S</b> 로 화면을 찍을 수 있습니다.</div>
+      <div class="toolbar" style="justify-content:center">
+        <button id="pickBtn">이미지 선택</button>
+      </div>
+      <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+    </div>
+
+    <!-- 결과 -->
+    <div id="result" style="display:none">
+      <div class="toolbar" style="margin-bottom:10px;margin-top:0">
+        <button id="resetBtn">지우고 다시 하기</button>
+        <span class="muted">Ctrl+V 로 바로 다음 캡처를 붙여넣어도 됩니다.</span>
+      </div>
+      <div class="grid">
+        <div class="panel" style="margin:0">
+          <div class="ttl">원본</div>
+          <img id="preview" alt="붙여넣은 캡처">
+        </div>
+        <div class="panel" style="margin:0">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div class="ttl" style="margin:0">한국어 번역</div>
+            <button class="small" id="copyAll" style="display:none">전체 복사</button>
+          </div>
+          <div id="busy" style="display:none;padding:20px 0" class="muted">
+            <span class="spin"></span> 이미지를 읽고 번역하는 중입니다…
+          </div>
+          <div class="err" id="tErr" style="display:none"></div>
+          <div id="paras"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 문장집 -->
+    <div class="panel" style="margin-top:14px">
+      <button class="fold" id="fold" style="border:none;background:none;padding:0;font-size:14px">
+        <span>자주 쓰는 문장집 <span class="muted" id="pcount"></span></span>
+        <span class="muted" id="foldIcon">펼치기 ▼</span>
+      </button>
+      <div id="pbody" style="display:none;margin-top:14px">
+        <div class="muted" style="margin-bottom:8px">
+          한국어 문장을 넣으면 거래처에 보낼 수 있는 중국어로 바꿔 저장합니다.
+        </div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="pInput" placeholder="예) 납기일이 언제인가요?">
+          <button class="primary" id="pAdd" style="white-space:nowrap">저장</button>
+        </div>
+        <div class="err" id="pErr" style="display:none"></div>
+        <div id="pList"></div>
+        <div class="toolbar" style="border-top:1px solid #f0f1f4;padding-top:12px;margin-top:14px">
+          <button class="small" id="pExport">내보내기 (백업)</button>
+          <button class="small" id="pImportBtn">불러오기</button>
+          <input type="file" id="pImport" accept="application/json,.json" style="display:none">
+          <span class="muted">이 브라우저에만 저장됩니다. 가끔 내보내서 백업해두세요.</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────
+   설정값
+   ───────────────────────────────────────────── */
+var PASSWORD = "1212";
+
+// api/_shared.js 의 MODEL 과 맞춰야 한다.
+var MODEL = "claude-haiku-4-5";
+var PRICES = {                      // 100만 토큰당 달러
+  "claude-haiku-4-5": { in: 1,  out: 5  },
+  "claude-sonnet-5":  { in: 2,  out: 10 },
+  "claude-opus-5":    { in: 5,  out: 25 }
+};
+
+var MAX_EDGE = 1568;                // 이미지 긴 변 최대 px
+var MAX_BYTES = 5 * 1024 * 1024;
+
+var K = { gate:"it_gate", key:"it_key", usage:"it_usage", ph:"it_phrases",
+          limit:"it_limit", rate:"it_rate" };
+
+var ERRORS = {
+  credit_low : "API 잔액이 부족합니다. 콘솔 Billing 에서 충전해주세요.",
+  auth       : "API 키가 올바르지 않습니다. 설정에서 키를 다시 넣어주세요.",
+  too_large  : "이미지가 너무 큽니다. 화면 일부만 다시 캡처해주세요.",
+  not_image  : "이미지를 붙여넣어 주세요. 텍스트는 아직 지원하지 않습니다.",
+  no_chinese : "이 이미지에서 중국어를 찾지 못했습니다.",
+  rate_limit : "요청이 몰렸습니다. 잠시 후 다시 시도해주세요.",
+  unknown    : "번역에 실패했습니다. 다시 시도해주세요."
+};
+
+var $ = function (id) { return document.getElementById(id); };
+function ls(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+/* ─────────────────────────────────────────────
+   1. 비밀번호
+   ───────────────────────────────────────────── */
+function tryPw() {
+  if ($("pw").value.trim() === PASSWORD) {
+    lsSet(K.gate, "1");
+    $("pwErr").style.display = "none";
+    afterGate();
+  } else {
+    $("pwErr").style.display = "block";
+    $("pw").value = "";
+    $("pw").focus();
+  }
+}
+$("pwBtn").onclick = tryPw;
+$("pw").onkeydown = function (e) { if (e.key === "Enter") tryPw(); };
+
+function afterGate() {
+  $("gate").style.display = "none";
+  if (validKey(ls(K.key, ""))) { showMain(); } else { $("keySetup").style.display = "block"; $("keyInput").focus(); }
+}
+
+/* ─────────────────────────────────────────────
+   2. API 키
+   ───────────────────────────────────────────── */
+function keyProblem(k) {
+  if (!k) return "키를 입력해주세요.";
+  if (/\s/.test(k)) return "키에 공백이나 줄바꿈이 섞여 있습니다. 앞뒤를 다시 확인해주세요.";
+  if (k.indexOf("sk-ant-") !== 0) return "키는 sk-ant- 로 시작해야 합니다.";
+  if (k.indexOf("...") !== -1) return "키 중간에 점(...)이 있습니다. 목록에 가려진 채 표시된 것을 복사하신 것 같습니다. 전체 키는 만들 때 딱 한 번만 보이니 새로 만들어주세요.";
+  if (k.length < 50) return "키가 너무 짧습니다. (" + k.length + "자 / 정상은 100자 이상)";
+  return null;
+}
+function validKey(k) { return !keyProblem(k); }
+
+$("keyBtn").onclick = function () {
+  var k = $("keyInput").value.trim();
+  var p = keyProblem(k);
+  if (p) { $("keyErr").textContent = p; $("keyErr").style.display = "block"; return; }
+  lsSet(K.key, k);
+  $("keyErr").style.display = "none";
+  $("keySetup").style.display = "none";
+  showMain();
+};
+$("keyInput").onkeydown = function (e) { if (e.key === "Enter") $("keyBtn").click(); };
+
+/* ─────────────────────────────────────────────
+   3. 사용량 / 비용
+   ───────────────────────────────────────────── */
+function thisMonth() {
+  var d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+function loadUsage() {
+  try { return JSON.parse(ls(K.usage, "{}")) || {}; } catch (e) { return {}; }
+}
+function monthUsage() {
+  var u = loadUsage()[thisMonth()];
+  return u || { calls: 0, inTok: 0, outTok: 0 };
+}
+function addUsage(usage) {
+  var all = loadUsage(), m = thisMonth();
+  var u = all[m] || { calls: 0, inTok: 0, outTok: 0 };
+  u.calls += 1;
+  u.inTok += (usage && usage.input) || 0;
+  u.outTok += (usage && usage.output) || 0;
+  all[m] = u;
+  // 지난 12개월만 남긴다
+  var keys = Object.keys(all).sort();
+  while (keys.length > 12) { delete all[keys.shift()]; }
+  lsSet(K.usage, JSON.stringify(all));
+  renderUsage();
+}
+function rate() { return parseInt(ls(K.rate, "1400"), 10) || 1400; }
+function limit() { return parseInt(ls(K.limit, "5000"), 10) || 0; }
+
+function monthCost() {
+  var u = monthUsage(), p = PRICES[MODEL] || PRICES["claude-haiku-4-5"];
+  var usd = (u.inTok / 1e6) * p.in + (u.outTok / 1e6) * p.out;
+  return usd * rate();
+}
+function renderUsage() {
+  var u = monthUsage(), cost = monthCost(), lim = limit();
+  $("stCount").textContent = u.calls + "회";
+  $("stCost").textContent = Math.round(cost).toLocaleString() + "원";
+  var d = new Date();
+  $("stMonth").firstChild.textContent = d.getFullYear() + "년 " + (d.getMonth() + 1) + "월 사용 ";
+  if (lim > 0) {
+    var pct = Math.min(999, Math.round((cost / lim) * 100));
+    $("stLimit").textContent = lim.toLocaleString() + "원 중 " + pct + "%";
+    $("stCostBox").className = cost >= lim ? "stat over" : "stat";
+  } else {
+    $("stLimit").textContent = "무제한";
+    $("stCostBox").className = "stat";
+  }
+}
+function overLimit() {
+  var lim = limit();
+  return lim > 0 && monthCost() >= lim;
+}
+
+/* ─────────────────────────────────────────────
+   4. 공통 호출
+   ───────────────────────────────────────────── */
+function call(path, body) {
+  if (overLimit()) {
+    return Promise.reject({ code: "limit" });
+  }
+  return fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-anthropic-key": ls(K.key, "") },
+    body: JSON.stringify(body)
+  }).then(function (r) {
+    return r.json().then(function (j) {
+      if (!r.ok) throw j;
+      if (j.usage) addUsage(j.usage);
+      return j;
+    });
+  });
+}
+function errText(e) {
+  if (e && e.code === "limit") {
+    return "이번 달 한도(" + limit().toLocaleString() + "원)를 넘었습니다. 설정에서 한도를 올리거나 0으로 두면 계속 쓸 수 있습니다.";
+  }
+  return (e && ERRORS[e.code]) || ERRORS.unknown;
+}
+
+/* ─────────────────────────────────────────────
+   5. 캡처 번역
+   ───────────────────────────────────────────── */
+function prepare(blob) {
+  return createImageBitmap(blob).then(function (bmp) {
+    var longEdge = Math.max(bmp.width, bmp.height);
+    var s = longEdge > MAX_EDGE ? MAX_EDGE / longEdge : 1;
+    var c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * s);
+    c.height = Math.round(bmp.height * s);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close();
+    var url = c.toDataURL("image/png"), type = "image/png";
+    if (url.length > 4000000) { url = c.toDataURL("image/jpeg", 0.92); type = "image/jpeg"; }
+    return { data: url.split(",")[1], mediaType: type, url: url };
+  });
+}
+function splitParas(t) {
+  var byBlank = t.split(/\n\s*\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+  if (byBlank.length > 1) return byBlank;
+  var lines = t.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+  return lines.length > 3 ? lines : [t.trim()];
+}
+function copyText(t, btn) {
+  var done = function () {
+    var old = btn.textContent; btn.textContent = "복사됨";
+    setTimeout(function () { btn.textContent = old; }, 1200);
+  };
+  if (navigator.clipboard) { navigator.clipboard.writeText(t).then(done, done); }
+  else {
+    var ta = document.createElement("textarea");
+    ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select(); document.execCommand("copy");
+    document.body.removeChild(ta); done();
+  }
+}
+
+function handleImage(blob) {
+  if (blob.size > MAX_BYTES * 6) { showTErr({ code: "too_large" }); return; }
+
+  $("drop").style.display = "none";
+  $("result").style.display = "block";
+  $("tErr").style.display = "none";
+  $("paras").innerHTML = "";
+  $("copyAll").style.display = "none";
+  $("busy").style.display = "block";
+
+  prepare(blob).then(function (img) {
+    $("preview").src = img.url;
+    return call("/api/translate", { image: img.data, mediaType: img.mediaType });
+  }).then(function (j) {
+    $("busy").style.display = "none";
+    renderParas(j.text);
+  }).catch(function (e) {
+    $("busy").style.display = "none";
+    showTErr(e);
+  });
+}
+function renderParas(text) {
+  var box = $("paras");
+  box.innerHTML = "";
+  splitParas(text).forEach(function (p) {
+    var row = document.createElement("div");
+    row.className = "para";
+    var pe = document.createElement("p");
+    pe.textContent = p;
+    var b = document.createElement("button");
+    b.className = "small"; b.textContent = "복사";
+    b.onclick = function () { copyText(p, b); };
+    row.appendChild(pe); row.appendChild(b);
+    box.appendChild(row);
+  });
+  var all = $("copyAll");
+  all.style.display = "inline-block";
+  all.onclick = function () { copyText(text, all); };
+}
+function showTErr(e) {
+  var box = $("tErr");
+  box.innerHTML = "";
+  var p = document.createElement("div");
+  p.textContent = errText(e);
+  box.appendChild(p);
+  if (e && e.code === "credit_low") {
+    var a = document.createElement("a");
+    a.href = "https://console.anthropic.com/settings/billing";
+    a.target = "_blank"; a.textContent = "Billing 페이지 열기";
+    box.appendChild(a);
+  }
+  if (e && e.detail) {
+    var t = document.createElement("div");
+    t.className = "muted"; t.style.marginTop = "6px"; t.style.wordBreak = "break-all";
+    t.textContent = e.detail;
+    box.appendChild(t);
+  }
+  box.style.display = "block";
+}
+
+$("pickBtn").onclick = function () { $("file").click(); };
+$("file").onchange = function (e) { if (e.target.files[0]) handleImage(e.target.files[0]); };
+$("resetBtn").onclick = function () {
+  $("result").style.display = "none";
+  $("drop").style.display = "block";
+  $("file").value = "";
+};
+
+window.addEventListener("paste", function (e) {
+  if ($("main").style.display === "none") return;
+  var tag = e.target && e.target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA") return;   // 문장집 입력칸은 건드리지 않는다
+  var items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf("image/") === 0) {
+      var f = items[i].getAsFile();
+      if (f) { e.preventDefault(); handleImage(f); return; }
+    }
+  }
+  if (e.clipboardData.types && e.clipboardData.types.indexOf("text/plain") !== -1) {
+    $("drop").style.display = "none"; $("result").style.display = "block";
+    $("busy").style.display = "none"; $("paras").innerHTML = "";
+    showTErr({ code: "not_image" });
+  }
+});
+window.addEventListener("dragover", function (e) { e.preventDefault(); });
+window.addEventListener("drop", function (e) {
+  e.preventDefault();
+  if ($("main").style.display === "none") return;
+  var f = e.dataTransfer && e.dataTransfer.files[0];
+  if (!f) return;
+  if (f.type.indexOf("image/") !== 0) { showTErr({ code: "not_image" }); return; }
+  handleImage(f);
+});
+
+/* ─────────────────────────────────────────────
+   6. 문장집
+   ───────────────────────────────────────────── */
+function phrases() { try { return JSON.parse(ls(K.ph, "[]")) || []; } catch (e) { return []; } }
+function savePhrases(list) { lsSet(K.ph, JSON.stringify(list)); renderPhrases(); }
+
+function renderPhrases() {
+  var list = phrases();
+  $("pcount").textContent = list.length ? list.length + "개" : "";
+  var box = $("pList");
+  if (!list.length) {
+    box.innerHTML = '<div class="muted" style="padding:24px 0;text-align:center">아직 저장한 문장이 없습니다.</div>';
+    return;
+  }
+  var t = document.createElement("table");
+  t.innerHTML = "<thead><tr><th>No</th><th>한국어</th><th>중국어</th><th></th></tr></thead>";
+  var tb = document.createElement("tbody");
+  list.forEach(function (p) {
+    var tr = document.createElement("tr");
+    var td0 = document.createElement("td"); td0.className = "no"; td0.textContent = p.no;
+    var td1 = document.createElement("td"); td1.textContent = p.ko;
+    var td2 = document.createElement("td"); td2.className = "zh"; td2.textContent = p.zh;
+    var td3 = document.createElement("td"); td3.className = "act";
+    var cb = document.createElement("button"); cb.className = "small"; cb.textContent = "복사";
+    cb.onclick = function () { copyText(p.zh, cb); };
+    var db = document.createElement("button"); db.className = "small"; db.textContent = "삭제";
+    db.style.marginLeft = "4px";
+    db.onclick = function () { savePhrases(phrases().filter(function (x) { return x.no !== p.no; })); };
+    td3.appendChild(cb); td3.appendChild(db);
+    tr.appendChild(td0); tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb);
+  box.innerHTML = "";
+  box.appendChild(t);
+}
+
+$("fold").onclick = function () {
+  var open = $("pbody").style.display !== "none";
+  $("pbody").style.display = open ? "none" : "block";
+  $("foldIcon").textContent = open ? "펼치기 ▼" : "접기 ▲";
+};
+function addPhrase() {
+  var ko = $("pInput").value.trim();
+  if (!ko) return;
+  var btn = $("pAdd");
+  btn.disabled = true; btn.textContent = "번역 중…";
+  $("pErr").style.display = "none";
+  call("/api/phrase", { text: ko }).then(function (j) {
+    var list = phrases();
+    var next = list.reduce(function (m, x) { return Math.max(m, x.no); }, 0) + 1;
+    list.unshift({ no: next, ko: ko, zh: j.zh, savedAt: new Date().toISOString() });
+    savePhrases(list);
+    $("pInput").value = "";
+  }).catch(function (e) {
+    $("pErr").textContent = errText(e);
+    $("pErr").style.display = "block";
+  }).then(function () {
+    btn.disabled = false; btn.textContent = "저장";
+  });
+}
+$("pAdd").onclick = addPhrase;
+$("pInput").onkeydown = function (e) { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); addPhrase(); } };
+
+$("pExport").onclick = function () {
+  var blob = new Blob([JSON.stringify(phrases(), null, 2)], { type: "application/json" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "문장집-" + new Date().toISOString().slice(0, 10) + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+$("pImportBtn").onclick = function () { $("pImport").click(); };
+$("pImport").onchange = function (e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  f.text().then(function (txt) {
+    var arr = JSON.parse(txt);
+    if (!Array.isArray(arr)) throw new Error("형식 오류");
+    var list = phrases();
+    var seen = {}; list.forEach(function (x) { seen[x.ko] = 1; });
+    var next = list.reduce(function (m, x) { return Math.max(m, x.no); }, 0);
+    var add = arr.filter(function (x) { return x && x.ko && x.zh && !seen[x.ko]; })
+                 .map(function (x) { return { no: ++next, ko: x.ko, zh: x.zh, savedAt: x.savedAt || new Date().toISOString() }; });
+    savePhrases(add.reverse().concat(list));
+  }).catch(function () {
+    alert("불러오기에 실패했습니다. 내보내기로 저장한 파일인지 확인해주세요.");
+  }).then(function () { $("pImport").value = ""; });
+};
+
+/* ─────────────────────────────────────────────
+   7. 설정
+   ───────────────────────────────────────────── */
+$("setBtn").onclick = function () {
+  var box = $("settings");
+  var open = box.style.display !== "none";
+  box.style.display = open ? "none" : "block";
+  if (!open) { $("limitInput").value = limit(); $("rateInput").value = rate(); }
+};
+$("saveSet").onclick = function () {
+  lsSet(K.limit, String(parseInt($("limitInput").value, 10) || 0));
+  lsSet(K.rate, String(parseInt($("rateInput").value, 10) || 1400));
+  renderUsage();
+  $("settings").style.display = "none";
+};
+$("changeKey").onclick = function () {
+  $("main").style.display = "none";
+  $("keySetup").style.display = "block";
+  $("keyInput").value = ls(K.key, "");
+  $("keyInput").focus();
+};
+$("resetUsage").onclick = function () {
+  if (!confirm("이번 달 사용량 기록을 지울까요? (실제 청구액과는 무관합니다)")) return;
+  var all = loadUsage();
+  delete all[thisMonth()];
+  lsSet(K.usage, JSON.stringify(all));
+  renderUsage();
+};
+
+/* ─────────────────────────────────────────────
+   시작
+   ───────────────────────────────────────────── */
+function showMain() {
+  $("main").style.display = "block";
+  renderUsage();
+  renderPhrases();
+}
+if (ls(K.gate, "") === "1") { afterGate(); } else { $("pw").focus(); }
+</script>
+</body>
+</html>
