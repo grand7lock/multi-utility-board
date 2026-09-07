@@ -121,6 +121,21 @@
   <h1>타카라 명세표 입력기</h1>
   <p class="sub">거래명세표 사진을 읽어 <b>1 KR_BYA_BENW 공급가.xlsx</b> 의 <b>입출금 내역</b> 시트에 한 줄씩 넣습니다. 원본은 건드리지 않고 복사본을 만듭니다.</p>
 
+  <!-- 비밀번호 -->
+  <div class="box" id="gate">
+    <div class="box-b">
+      <div style="font-weight:700;margin-bottom:8px">비밀번호를 입력해주세요</div>
+      <div style="display:flex;gap:8px;max-width:320px">
+        <input type="password" id="pw" placeholder="비밀번호" autocomplete="off">
+        <button class="pri" id="pwBtn" style="white-space:nowrap">들어가기</button>
+      </div>
+      <div class="err" id="pwErr" style="margin-top:10px;margin-bottom:0" hidden>비밀번호가 틀렸습니다.</div>
+    </div>
+  </div>
+
+  <!-- 비밀번호를 통과해야 아래가 보인다 -->
+  <div id="main" hidden>
+
   <div id="err" class="err" hidden></div>
 
   <!-- ① 준비 -->
@@ -202,6 +217,8 @@
     <div class="box-h">⑤ 저장한 파일</div>
     <div id="doneList"></div>
   </div>
+
+  </div><!-- /#main -->
 </div>
 
 <script src="../lib/fflate.min.js"></script>
@@ -212,6 +229,8 @@
 var SHEET_NAME = "입출금 내역";
 var DC_RATE = 0.12;                 // F열 수식과 같은 요율
 var MODEL = "claude-sonnet-5";      // 숫자 정확도가 중요해서 haiku 대신 sonnet
+var PASSWORD = "1212";              // 중국어 캐처 번역기와 같은 방식의 간단한 잠금
+var K_GATE = "takara_gate";
 var K_KEY = "takara_api_key";
 var K_FOLDER = "takara_folder";
 var K_DONE = "takara_done";
@@ -891,6 +910,23 @@ document.addEventListener("blur", function(e){
 }, true);
 function byId(id){ return slips.filter(function(s){ return s.id === id; })[0]; }
 
+/* ══════════ 비밀번호 ══════════ */
+function openMain(){
+  $("gate").hidden = true;
+  $("main").hidden = false;
+}
+function tryPw(){
+  if ($("pw").value.trim() === PASSWORD) {
+    try { localStorage.setItem(K_GATE, "1"); } catch (e) {}
+    $("pwErr").hidden = true;
+    openMain();
+  } else {
+    $("pwErr").hidden = false;
+    $("pw").value = "";
+    $("pw").focus();
+  }
+}
+
 /* 저장된 설정 */
 (function init(){
   var k = localStorage.getItem(K_KEY); if (k) { $("apiKey").value = k; }
@@ -910,6 +946,13 @@ function byId(id){ return slips.filter(function(s){ return s.id === id; })[0]; }
   }
   renderDone();
   render();
+
+  // 한 번 들어오면 이 브라우저에서는 다음부터 묻지 않는다
+  $("pwBtn").onclick = tryPw;
+  $("pw").onkeydown = function (e) { if (e.key === "Enter") { tryPw(); } };
+  var unlocked = false;
+  try { unlocked = localStorage.getItem(K_GATE) === "1"; } catch (e) {}
+  if (unlocked) { openMain(); } else { $("pw").focus(); }
 })();
 </script>
 </body>
