@@ -13,9 +13,23 @@
     margin: 0; background: #ffffff; color: #1f2937; min-height: 100vh;
   }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 20px 80px; }
-  header { margin-bottom: 30px; }
+  header { margin-bottom: 18px; }
   h1 { font-size: 26px; margin: 0 0 6px; color: #111827; }
   .sub { color: #6b7280; font-size: 14px; }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin-bottom: 16px; font-size: 12.5px; color: #6b7280;
+  }
+  .toolbar button {
+    padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 7px;
+    background: #fff; font-size: 12.5px; cursor: pointer; font-family: inherit;
+    white-space: nowrap; color: #374151;
+  }
+  .toolbar button:hover { background: #f3f4f6; }
+  .saved { color: #059669; font-weight: 700; opacity: 0; transition: opacity .2s; }
+  .saved.show { opacity: 1; }
+
   .grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 14px;
@@ -42,7 +56,28 @@
   .card.empty { background: #fafafa; border-style: dashed; box-shadow: none; }
   .card.empty .icon { background: #f3f4f6; opacity: .6; }
   .card.empty .name { color: #9ca3af; }
-  footer { margin-top: 36px; font-size: 12px; color: #9ca3af; }
+
+  /* 이동 */
+  .card.dragging { opacity: .35; }
+  .card.over { border-color: #2563eb; border-style: solid; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+  .move {
+    position: absolute; left: 12px; bottom: 10px; display: flex; gap: 4px;
+    opacity: 0; transition: opacity .12s;
+  }
+  .card:hover .move, .card:focus-within .move { opacity: 1; }
+  .move button {
+    width: 26px; height: 24px; padding: 0; line-height: 1;
+    border: 1px solid #e5e7eb; border-radius: 6px; background: #fff;
+    color: #6b7280; font-size: 12px; cursor: grab; font-family: inherit;
+  }
+  .move button:hover { background: #eff6ff; border-color: #93c5fd; color: #2563eb; }
+  .move button:disabled { opacity: .3; cursor: default; }
+  /* 손가락으로 쓰는 화면에서는 화살표를 늘 보이게 (끌어놓기가 안 되므로) */
+  @media (hover: none) {
+    .move { opacity: 1; }
+  }
+
+  footer { margin-top: 36px; font-size: 12px; color: #9ca3af; line-height: 1.7; }
 </style>
 </head>
 <body>
@@ -52,17 +87,26 @@
     <div class="sub">반복 업무를 반자동으로 처리하는 도구 모음 · 카드를 클릭하면 실행됩니다</div>
   </header>
 
+  <div class="toolbar">
+    <span>카드를 끌어다 놓으면 순서가 바뀌고, 이 브라우저에 저장됩니다. 화살표(◀ ▶)로 옮겨도 됩니다.</span>
+    <span style="flex:1"></span>
+    <span class="saved" id="saved">저장됨</span>
+    <button id="resetBtn">기본 순서로</button>
+  </div>
+
   <div class="grid" id="grid"></div>
 
   <footer>
-    입력한 데이터는 브라우저 안에서만 처리되며 서버에 저장되지 않습니다.
+    입력한 데이터는 브라우저 안에서만 처리되며 서버에 저장되지 않습니다.<br>
+    카드 순서도 이 브라우저에만 저장됩니다. 다른 PC에서는 기본 순서로 보입니다.
   </footer>
 </div>
 
 <script>
 "use strict";
 /* 도구 등록: 여기에 한 줄 추가하면 카드가 생깁니다.
-   { icon, name, desc, url }  — url이 없으면 "준비중" 슬롯 */
+   { icon, name, desc, url }  — url이 없으면 "준비중" 슬롯
+   url이 http 로 시작하면 새 탭에서 열리는 바깥 링크로 취급합니다. */
 var TOOLS = [
   { icon: "🚚", name: "CJ대한통운 대량 배송조회",
     desc: "송장번호를 한꺼번에 붙여넣으면 전체 배송상태를 실시간 조회하고, 배송완료가 아닌 건만 추려서 엑셀로 저장합니다.",
@@ -76,34 +120,202 @@ var TOOLS = [
   { icon: "🔄", name: "쇼핑몰 주문엑셀 변환기",
     desc: "지마켓·스마트스토어·쿠팡 등 주문 엑셀을 올리면 열을 자동 인식해서 한진/플레이오토 양식으로 변환합니다.",
     url: "tools/order-converter.html" },
+  { icon: "🀄", name: "중국어 캡처 번역기",
+    desc: "중국어가 있는 화면을 캡처해서 붙여넣으면 한국어로 번역합니다. 자주 쓰는 문장은 중국어로 저장해두고 꺼내 씁니다.",
+    url: "tools/image-translate.html" },
+  { icon: "📈", name: "주간 소싱 보드",
+    desc: "쿠팡 급상승 · 1688 신규상품 · SNS 핫템을 주 단위로 모아보는 보드입니다. 비밀번호가 필요합니다.",
+    url: "https://sourcing-board.vercel.app/" },
+  { icon: "🧾", name: "타카라 명세표 입력기",
+    desc: "거래명세표 사진을 카톡에서 끌어다 놓으면 읽어서 BENW 공급가 엑셀의 입출금 내역에 넣습니다. 잔금이 안 맞으면 저장을 막고 어디가 틀렸는지 짚어줍니다.",
+    url: "tools/takara-slip.html" },
+  { icon: "💧", name: "삼다수몰 주문 · 송장추출",
+    desc: "스마트스토어 주문 엑셀로 삼다수몰에 반자동 주문하고, 택배사·송장번호와 배송지를 뽑아 발송처리 엑셀을 만듭니다. 내 PC에 설치된 도구를 실행합니다.",
+    url: "samdasoo://open" },
 ];
 var TOTAL_SLOTS = 20;
+var LAYOUT_KEY = "board_layout_v1";
 
-var grid = document.getElementById("grid");
-for (var i = 0; i < TOTAL_SLOTS; i++) {
-  var t = TOOLS[i];
-  var card;
-  if (t && t.url) {
-    card = document.createElement("a");
-    card.className = "card";
-    card.href = t.url;
-    card.innerHTML =
-      '<span class="num">' + String(i+1).padStart(2,"0") + '</span>' +
-      '<div class="icon">' + t.icon + '</div>' +
-      '<div class="name">' + t.name + '</div>' +
-      '<div class="desc">' + t.desc + '</div>' +
-      '<div class="go">실행 →</div>';
-  } else {
-    card = document.createElement("div");
-    card.className = "card empty";
-    card.innerHTML =
-      '<span class="num">' + String(i+1).padStart(2,"0") + '</span>' +
-      '<div class="icon">➕</div>' +
-      '<div class="name">준비중</div>' +
-      '<div class="desc">다음 도구가 들어올 자리입니다.</div>';
-  }
-  grid.appendChild(card);
+/* ── 배치 저장 ───────────────────────────────────────
+   layout 은 길이 20 배열. 각 칸은 도구의 url(고유값) 또는 null.
+   도구를 새로 추가하면 저장된 배치에 없으므로 빈 칸에 자동으로 들어간다. */
+
+function defaultLayout() {
+  var a = [];
+  for (var i = 0; i < TOTAL_SLOTS; i++) a.push(TOOLS[i] ? TOOLS[i].url : null);
+  return a;
 }
+
+function loadLayout() {
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(LAYOUT_KEY)); } catch (e) {}
+  if (!Array.isArray(saved)) return defaultLayout();
+
+  var known = {};
+  TOOLS.forEach(function (t) { known[t.url] = true; });
+
+  // 저장된 배치에서 지금 없는 도구는 버리고, 길이를 20으로 맞춘다
+  var layout = [];
+  var used = {};
+  for (var i = 0; i < TOTAL_SLOTS; i++) {
+    var k = saved[i];
+    if (k && known[k] && !used[k]) { layout.push(k); used[k] = true; }
+    else { layout.push(null); }
+  }
+  // 저장된 배치에 없던 새 도구는 앞쪽 빈 칸부터 채운다
+  TOOLS.forEach(function (t) {
+    if (used[t.url]) return;
+    var slot = layout.indexOf(null);
+    if (slot !== -1) { layout[slot] = t.url; used[t.url] = true; }
+  });
+  return layout;
+}
+
+function saveLayout() {
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch (e) {}
+  var el = document.getElementById("saved");
+  el.classList.add("show");
+  clearTimeout(saveLayout._t);
+  saveLayout._t = setTimeout(function () { el.classList.remove("show"); }, 1400);
+}
+
+function toolByUrl(url) {
+  for (var i = 0; i < TOOLS.length; i++) if (TOOLS[i].url === url) return TOOLS[i];
+  return null;
+}
+
+/* ── 그리기 ─────────────────────────────────────── */
+
+var layout = loadLayout();
+var grid = document.getElementById("grid");
+
+function move(from, to) {
+  if (to < 0 || to >= TOTAL_SLOTS || from === to) return;
+  var item = layout.splice(from, 1)[0];
+  layout.splice(to, 0, item);
+  saveLayout();
+  render();
+  // 옮긴 카드에 초점을 남겨 화살표를 계속 누를 수 있게 한다
+  var moved = grid.children[to];
+  if (moved) { var b = moved.querySelector(".move button"); if (b) b.focus(); }
+}
+
+function render() {
+  grid.innerHTML = "";
+
+  layout.forEach(function (key, i) {
+    var t = key ? toolByUrl(key) : null;
+    var external = t && /^https?:/i.test(t.url);
+    // samdasoo:// 처럼 내 PC의 프로그램을 실행하는 링크 — 같은 탭에서 열면 보드가 사라지므로 구분한다
+    var localApp = t && /^[a-z][a-z0-9+.-]*:/i.test(t.url) && !external && !/^\//.test(t.url);
+    var card;
+
+    if (t) {
+      card = document.createElement("a");
+      card.className = "card";
+      card.href = t.url;
+      if (external) { card.target = "_blank"; card.rel = "noreferrer"; }
+      // 로컬 앱 실행 링크: 보드는 그대로 두고 프로그램만 띄운다
+      if (localApp) {
+        card.addEventListener("click", function (e) {
+          e.preventDefault();
+          var f = document.createElement("iframe");
+          f.style.display = "none";
+          f.src = t.url;
+          document.body.appendChild(f);
+          setTimeout(function () { f.remove(); }, 2000);
+        });
+      }
+    } else {
+      card = document.createElement("div");
+      card.className = "card empty";
+    }
+
+    card.draggable = true;
+    card.dataset.index = i;
+
+    var num = '<span class="num">' + String(i + 1).padStart(2, "0") + "</span>";
+    if (t) {
+      card.innerHTML = num +
+        '<div class="icon">' + t.icon + "</div>" +
+        '<div class="name">' + t.name + "</div>" +
+        '<div class="desc">' + t.desc + "</div>" +
+        '<div class="go">' + (external ? "새 탭에서 열기 ↗" : (localApp ? "내 PC에서 실행 ⏻" : "실행 →")) + "</div>";
+    } else {
+      card.innerHTML = num +
+        '<div class="icon">➕</div>' +
+        '<div class="name">준비중</div>' +
+        '<div class="desc">다음 도구가 들어올 자리입니다.</div>';
+    }
+
+    // 화살표로 옮기기 (손가락으로 쓰는 화면에서는 이쪽이 유일한 방법)
+    var mv = document.createElement("div");
+    mv.className = "move";
+    mv.innerHTML =
+      '<button type="button" data-dir="-1" title="앞으로" aria-label="앞으로 옮기기">◀</button>' +
+      '<button type="button" data-dir="1" title="뒤로" aria-label="뒤로 옮기기">▶</button>';
+    mv.querySelectorAll("button").forEach(function (b) {
+      var dir = parseInt(b.dataset.dir, 10);
+      if (i + dir < 0 || i + dir >= TOTAL_SLOTS) b.disabled = true;
+      b.addEventListener("click", function (e) {
+        e.preventDefault();   // 카드가 링크라서 눌러도 이동하지 않게 막는다
+        e.stopPropagation();
+        move(i, i + dir);
+      });
+    });
+    card.appendChild(mv);
+
+    grid.appendChild(card);
+  });
+}
+
+/* ── 끌어다 놓기 ─────────────────────────────────── */
+
+var dragFrom = null;
+
+grid.addEventListener("dragstart", function (e) {
+  var card = e.target.closest(".card");
+  if (!card) return;
+  dragFrom = parseInt(card.dataset.index, 10);
+  card.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+  // 링크를 끌 때 브라우저가 주소를 끌고 가지 않도록 내용을 덮어쓴다
+  try { e.dataTransfer.setData("text/plain", String(dragFrom)); } catch (err) {}
+});
+
+grid.addEventListener("dragend", function () {
+  dragFrom = null;
+  Array.prototype.forEach.call(grid.children, function (c) {
+    c.classList.remove("dragging", "over");
+  });
+});
+
+grid.addEventListener("dragover", function (e) {
+  if (dragFrom === null) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  var card = e.target.closest(".card");
+  Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove("over"); });
+  if (card) card.classList.add("over");
+});
+
+grid.addEventListener("drop", function (e) {
+  if (dragFrom === null) return;
+  e.preventDefault();
+  var card = e.target.closest(".card");
+  if (!card) return;
+  move(dragFrom, parseInt(card.dataset.index, 10));
+  dragFrom = null;
+});
+
+document.getElementById("resetBtn").addEventListener("click", function () {
+  if (!confirm("카드 순서를 기본값으로 되돌릴까요?")) return;
+  layout = defaultLayout();
+  saveLayout();
+  render();
+});
+
+render();
 </script>
 </body>
 </html>

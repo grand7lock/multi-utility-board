@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<title>타카라 명세표 입력기</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:"Malgun Gothic","맑은 고딕",Arial,sans-serif;margin:0;background:#fff;color:#1f2937}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 20px 80px}
+  a.back{font-size:13px;color:#6b7280;text-decoration:none}
+  a.back:hover{color:#2563eb}
+  h1{font-size:23px;margin:10px 0 5px;color:#111827}
+  .sub{color:#6b7280;font-size:13.5px;margin:0 0 18px}
+  .num{font-family:Consolas,"Courier New",monospace;font-variant-numeric:tabular-nums}
+
+  .box{border:1px solid #e5e7eb;border-radius:12px;background:#fff;margin-bottom:16px;overflow:hidden}
+  .box-h{padding:11px 16px;border-bottom:1px solid #f3f4f6;font-size:12px;font-weight:700;color:#6b7280;letter-spacing:.06em;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .box-h .meta{margin-left:auto;font-weight:400;letter-spacing:0;font-size:12px;color:#9ca3af}
+  .box-b{padding:15px 16px}
+
+  button{font-family:inherit;font-size:13px;font-weight:700;border-radius:8px;cursor:pointer;padding:8px 14px;border:1px solid #d1d5db;background:#fff;color:#374151}
+  button:hover:not(:disabled){background:#f3f4f6}
+  button.pri{background:#2563eb;border-color:#2563eb;color:#fff}
+  button.pri:hover:not(:disabled){background:#1d4ed8}
+  button.danger{color:#b42318;border-color:#e5e7eb}
+  button.danger:hover:not(:disabled){border-color:#b42318;background:#fef2f2}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.mini{font-size:12px;padding:5px 10px}
+  input[type=text],input[type=password]{font-family:inherit;font-size:13px;padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;width:100%}
+  input.amt{font-family:Consolas,monospace;font-variant-numeric:tabular-nums;width:145px}
+  label.f{display:block;font-size:12px;color:#6b7280;margin-bottom:4px;font-weight:700}
+
+  /* 드롭존 */
+  #drop{border:2px dashed #d1d5db;border-radius:12px;padding:24px 18px;text-align:center;color:#6b7280;font-size:13.5px;cursor:pointer;transition:.15s}
+  #drop:hover,#drop.over{border-color:#2563eb;background:#f8fafc;color:#2563eb}
+  #drop b{display:block;font-size:15px;color:#111827;margin-bottom:4px}
+  #drop.over b{color:#2563eb}
+  .kbd{font-family:Consolas,monospace;font-size:11.5px;background:#f3f4f6;border:1px solid #d1d5db;border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+
+  /* 명세표 카드 */
+  .slip{border:1px solid #e5e7eb;border-radius:12px;margin-bottom:14px;overflow:hidden}
+  .slip.bad{border-color:#fca5a5}
+  .slip-h{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:11px 15px;background:#fafafa;border-bottom:1px solid #f3f4f6}
+  .slip-no{font-family:Consolas,monospace;font-size:15px;font-weight:700}
+  .slip-date{font-family:Consolas,monospace;font-size:13px;color:#6b7280}
+  .slip-cnt{font-size:12px;color:#9ca3af}
+  .badge{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .badge.ok{background:#e3f3ec;color:#0b6e4f}
+  .badge.no{background:#fbeae7;color:#b42318}
+  .slip-act{display:flex;gap:6px;margin-left:auto}
+
+  table.it{width:100%;border-collapse:collapse;font-size:13px}
+  table.it th{text-align:left;font-size:10.5px;letter-spacing:.07em;color:#9ca3af;font-weight:700;padding:8px 10px;border-bottom:1px solid #e5e7eb}
+  table.it td{padding:6px 10px;border-bottom:1px solid #f3f4f6}
+  table.it tbody tr:nth-child(odd){background:#f7fafd}
+  table.it .r{text-align:right;font-family:Consolas,monospace;font-variant-numeric:tabular-nums}
+  table.it .s{color:#9ca3af;font-family:Consolas,monospace;width:30px}
+  table.it tr.pay td{color:#0b6e4f}
+  table.it td[contenteditable]{outline:none}
+  table.it td[contenteditable]:focus{background:#fef9c3;border-radius:3px}
+
+  .sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1px;background:#f3f4f6;border-top:1px solid #e5e7eb}
+  .sum > div{background:#fff;padding:10px 13px}
+  .sum dt{font-size:10.5px;letter-spacing:.06em;color:#9ca3af;font-weight:700;margin:0}
+  .sum dd{margin:3px 0 0;font-family:Consolas,monospace;font-variant-numeric:tabular-nums;font-size:15px;font-weight:600}
+  .sum dd small{display:block;font-size:11px;color:#9ca3af;font-family:inherit;font-weight:400;margin-top:1px}
+
+  .audit{padding:12px 15px;border-top:1px solid #e5e7eb}
+  .chk{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+  .chk li{display:flex;gap:8px;font-size:13px;align-items:flex-start}
+  .mk{flex:none;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;margin-top:2px}
+  .mk.y{background:#e3f3ec;color:#0b6e4f}
+  .mk.n{background:#fbeae7;color:#b42318}
+  .fx{font-family:Consolas,monospace;font-size:12px;color:#6b7280;font-variant-numeric:tabular-nums}
+
+  .alert{margin-top:11px;border:1px solid #b42318;border-left-width:4px;border-radius:8px;background:#fef2f2;padding:13px 15px}
+  .alert h3{margin:0 0 3px;font-size:14px;color:#b42318}
+  .alert p{margin:0;font-size:12.5px;color:#374151}
+  .gaps{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px;margin:11px 0}
+  .gaps > div{background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px}
+  .gaps dt{font-size:10.5px;color:#9ca3af;font-weight:700;margin:0}
+  .gaps dd{margin:2px 0 0;font-family:Consolas,monospace;font-variant-numeric:tabular-nums;font-size:14.5px;font-weight:600}
+  .gaps .hot{border-color:#fca5a5}
+  .gaps .hot dd{color:#b42318}
+  .hint{background:#fef9c3;border-radius:6px;padding:8px 10px;font-size:12.5px;margin-bottom:10px;color:#713f12}
+  .fixrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12.5px;color:#6b7280}
+
+  .gone{border:1px dashed #d1d5db;border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13px;color:#6b7280}
+  .gone b{font-family:Consolas,monospace;color:#374151}
+  .gone > span{flex:1;min-width:180px}
+
+  table.prev{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.prev th{text-align:left;font-size:10px;letter-spacing:.05em;color:#9ca3af;font-weight:700;padding:7px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap}
+  table.prev td{padding:7px 8px;border-bottom:1px solid #f3f4f6;font-family:Consolas,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.prev td.warn{color:#b42318}
+  .scroll{overflow-x:auto}
+
+  .savebar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;border-top:1px solid #e5e7eb}
+  .why{flex:1;min-width:180px;font-size:12.5px;color:#b42318}
+  .why.ok{color:#6b7280}
+
+  .done-row{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:11px 16px;border-bottom:1px solid #f3f4f6;font-size:12.5px}
+  .done-row:last-child{border-bottom:0}
+  .done-f{flex:1;min-width:200px;font-family:Consolas,monospace}
+  .done-f span{display:block;font-family:inherit;color:#9ca3af;font-size:11.5px;margin-top:1px}
+
+  .row2{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .row2 > div{flex:1;min-width:200px}
+  .note{font-size:12px;color:#9ca3af;margin:8px 0 0;line-height:1.55}
+  .err{background:#fef2f2;border:1px solid #fca5a5;color:#b42318;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+  .busy{font-size:13px;color:#2563eb;font-weight:700}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← 업무 반자동 모음</a>
+  <h1>타카라 명세표 입력기</h1>
+  <p class="sub">거래명세표 사진을 읽어 <b>1 KR_BYA_BENW 공급가.xlsx</b> 의 <b>입출금 내역</b> 시트에 한 줄씩 넣습니다. 원본은 건드리지 않고 복사본을 만듭니다.</p>
+
+  <div id="err" class="err" hidden></div>
+
+  <!-- ① 준비 -->
+  <div class="box">
+    <div class="box-h">① 준비 <span class="meta" id="readyMeta"></span></div>
+    <div class="box-b">
+      <div class="row2">
+        <div>
+          <label class="f" for="xlsxPick">공급가 엑셀 원본</label>
+          <button id="xlsxPick">엑셀 파일 고르기</button>
+          <input type="file" id="xlsxInput" accept=".xlsx" hidden>
+        </div>
+        <div>
+          <label class="f" for="folder">저장 폴더 (엑셀 열기 링크에 씁니다)</label>
+          <input type="text" id="folder" placeholder="G:\내 드라이브\PBZ 공유폴더\매입처 [1] KR">
+        </div>
+      </div>
+      <p class="note" id="xlsxInfo">아직 고르지 않았습니다.</p>
+      <div class="row2" style="margin-top:12px">
+        <div>
+          <label class="f" for="apiKey">Anthropic API 키 (사진 읽기에 씁니다 · 이 브라우저에만 저장)</label>
+          <input type="password" id="apiKey" placeholder="sk-ant-...">
+        </div>
+      </div>
+      <p class="note">키는 서버로 보내지 않고 이 브라우저에만 남습니다. 사진 1장 읽는 데 약 15원입니다.</p>
+    </div>
+  </div>
+
+  <!-- ② 명세표 -->
+  <div class="box">
+    <div class="box-h">② 명세표 사진 <span class="meta" id="dropMeta">올린 명세표 없음</span></div>
+    <div class="box-b">
+      <div id="drop">
+        <b>카카오톡에서 사진을 여기로 끌어다 놓으세요</b>
+        끌어놓기가 안 되면 사진을 복사하고 <span class="kbd">Ctrl</span> <span class="kbd">V</span> · 클릭하면 파일에서 고릅니다
+      </div>
+      <input type="file" id="imgInput" accept="image/*" multiple hidden>
+      <p class="note">여러 장을 한 번에 올려도 됩니다. 명세표 번호 오름차순으로 정리해서 잔금이 이어지게 넣습니다.</p>
+    </div>
+  </div>
+
+  <!-- ③ 읽은 내용 -->
+  <div id="slipsBox" class="box" hidden>
+    <div class="box-h">③ 읽은 내용과 검산 <span class="meta" id="auditMeta"></span></div>
+    <div class="box-b" id="slips"></div>
+  </div>
+
+  <!-- ④ 저장 -->
+  <div id="saveBox" class="box" hidden>
+    <div class="box-h">④ 엑셀에 들어갈 줄 <span class="meta" id="rowMeta"></span></div>
+    <div class="scroll">
+      <table class="prev">
+        <thead><tr>
+          <th>행</th><th>B 날짜</th><th>C 품명 수량</th><th>D 발주 금액</th>
+          <th>E 선 충전금액</th><th>F DC</th><th>G 잔금</th><th>H 상품 목록</th>
+        </tr></thead>
+        <tbody id="prevBody"></tbody>
+      </table>
+    </div>
+    <p class="note" style="padding:0 16px">F열은 <span class="num">=E행*0.12</span> 수식이 이미 깔려 있어 건드리지 않습니다.</p>
+    <div class="savebar">
+      <span class="why" id="why"></span>
+      <button id="saveBtn" class="pri" disabled>복사본 만들고 저장</button>
+    </div>
+  </div>
+
+  <!-- ⑤ 저장한 파일 -->
+  <div id="doneBox" class="box" hidden>
+    <div class="box-h">⑤ 저장한 파일</div>
+    <div id="doneList"></div>
+  </div>
+</div>
+
+<script src="../lib/fflate.min.js"></script>
+<script>
+"use strict";
+
+/* ══════════ 설정 ══════════ */
+var SHEET_NAME = "입출금 내역";
+var DC_RATE = 0.12;                 // F열 수식과 같은 요율
+var MODEL = "claude-sonnet-5";      // 숫자 정확도가 중요해서 haiku 대신 sonnet
+var K_KEY = "takara_api_key";
+var K_FOLDER = "takara_folder";
+var K_DONE = "takara_done";
+var DEFAULT_FOLDER = "G:\\내 드라이브\\PBZ 공유폴더\\매입처 [1] KR";
+
+/* ══════════ 상태 ══════════ */
+var book = null;      // { name, buf, files, sheetPath, lastRow, lastBal }
+var slips = [];       // { no, date, sumAmount, pays[], dcAmount, balance, items[], lastSeq, removed, calcBal }
+var seq = 0;
+
+/* ══════════ 유틸 ══════════ */
+function $(id){ return document.getElementById(id); }
+function fmt(n){ return (n||0).toLocaleString("en-US"); }
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function showErr(m){ var e=$("err"); e.textContent=m; e.hidden=!m; if(m) window.scrollTo({top:0,behavior:"smooth"}); }
+function num(v){ var n=parseInt(String(v).replace(/[^0-9-]/g,""),10); return isNaN(n)?0:n; }
+
+/** 엑셀 날짜 일련번호 (1900 체계, 기준 1899-12-30) */
+function toSerial(iso){
+  var p = String(iso).split("-");
+  var d = Date.UTC(+p[0], +p[1]-1, +p[2]);
+  return Math.round((d - Date.UTC(1899,11,30)) / 86400000);
+}
+function todayTag(){
+  var d = new Date(), p = function(n){ return n<10?"0"+n:""+n; };
+  return String(d.getFullYear()).slice(2) + p(d.getMonth()+1) + p(d.getDate());
+}
+
+/* ══════════ 저장한 파일 목록 ══════════ */
+function loadDone(){ try { return JSON.parse(localStorage.getItem(K_DONE)||"[]"); } catch(e){ return []; } }
+function pushDone(rec){
+  var a = loadDone(); a.unshift(rec); a = a.slice(0,5);
+  try { localStorage.setItem(K_DONE, JSON.stringify(a)); } catch(e){}
+  renderDone();
+}
+function renderDone(){
+  var a = loadDone();
+  $("doneBox").hidden = a.length === 0;
+  $("doneList").innerHTML = a.map(function(r,i){
+    return '<div class="done-row"><div class="done-f">' + esc(r.file)
+      + '<span>' + esc(r.detail) + '</span></div>'
+      + '<button class="pri mini" data-open="' + i + '">엑셀 열기</button>'
+      + '<button class="mini" data-copy="' + i + '">경로 복사</button></div>';
+  }).join("");
+}
+
+/* ══════════ 엑셀 원본 읽기 ══════════ */
+function sheetPathFor(files, name){
+  var dec = new TextDecoder();
+  var wb = dec.decode(files["xl/workbook.xml"]);
+  var rels = dec.decode(files["xl/_rels/workbook.xml.rels"]);
+  var re = /<sheet[^>]*name="([^"]*)"[^>]*r:id="([^"]*)"/g, m, rid = null;
+  while ((m = re.exec(wb))) { if (m[1] === name) { rid = m[2]; break; } }
+  if (!rid) {
+    // name 과 r:id 순서가 뒤바뀐 파일도 있다
+    re = /<sheet[^>]*r:id="([^"]*)"[^>]*name="([^"]*)"/g;
+    while ((m = re.exec(wb))) { if (m[2] === name) { rid = m[1]; break; } }
+  }
+  if (!rid) { throw new Error("'" + name + "' 시트를 찾지 못했습니다."); }
+  var rr = new RegExp('Id="' + rid + '"[^>]*Target="([^"]*)"');
+  var t = rels.match(rr);
+  if (!t) {
+    rr = new RegExp('Target="([^"]*)"[^>]*Id="' + rid + '"');
+    t = rels.match(rr);
+  }
+  if (!t) { throw new Error("시트 파일 경로를 찾지 못했습니다."); }
+  var target = t[1].replace(/^\/xl\//, "").replace(/^\//, "");
+  return target.indexOf("xl/") === 0 ? target : "xl/" + target;
+}
+
+/** 해당 열에서 값이 들어있는 마지막 행과 그 값 */
+function lastValueIn(xml, col){
+  var re = new RegExp('<c r="' + col + '(\\d+)"[^>]*>\\s*(?:<f[^>]*(?:\\/>|>[\\s\\S]*?<\\/f>))?\\s*<v>([^<]*)<\\/v>', "g");
+  var m, row = 0, val = "";
+  while ((m = re.exec(xml))) {
+    var r = parseInt(m[1], 10);
+    if (r >= 10 && r > row) { row = r; val = m[2]; }
+  }
+  return { row: row, value: val };
+}
+
+function readBook(file){
+  return file.arrayBuffer().then(function(buf){
+    var files = fflate.unzipSync(new Uint8Array(buf));
+    var sp = sheetPathFor(files, SHEET_NAME);
+    var xml = new TextDecoder().decode(files[sp]);
+    var b = lastValueIn(xml, "B");           // 날짜가 든 마지막 행
+    var g = lastValueIn(xml, "G");           // 잔금이 든 마지막 행
+    book = {
+      name: file.name,
+      files: files,
+      sheetPath: sp,
+      xml: xml,
+      lastRow: b.row,
+      lastBal: Math.round(parseFloat(g.value) || 0)
+    };
+    $("xlsxInfo").innerHTML = "<b>" + esc(file.name) + "</b> — 마지막 데이터 "
+      + '<span class="num">' + b.row + "</span>행, 직전 잔금 "
+      + '<span class="num">' + fmt(book.lastBal) + "</span>원. 다음 줄은 "
+      + '<span class="num">' + (b.row + 1) + "</span>행부터 들어갑니다."
+      + (b.row + slips.filter(function(s){return !s.removed;}).length > 758
+         ? ' <span style="color:#b42318">— 758행을 넘어섭니다. 연도 합계 D8 범위를 넓혀야 합니다.</span>' : "");
+    showErr("");
+    render();
+  });
+}
+
+/* ══════════ 셀 채우기 ══════════ */
+function setCell(xml, ref, inner, type){
+  var re = new RegExp('<c r="' + ref + '"((?:(?!\\/>|>)[\\s\\S])*)(\\/>|>[\\s\\S]*?<\\/c>)');
+  var m = xml.match(re);
+  if (!m) { throw new Error(ref + " 칸을 찾지 못했습니다."); }
+  var attr = m[1].replace(/\s*t="[^"]*"/, "");         // 기존 타입 속성은 지우고 새로 붙인다
+  var open = '<c r="' + ref + '"' + attr + (type ? ' t="' + type + '"' : "");
+  var repl = inner === null ? open + "/>" : open + ">" + inner + "</c>";
+  return xml.replace(re, function(){ return repl; });
+}
+function setNum(xml, ref, v){ return setCell(xml, ref, "<v>" + v + "</v>", null); }
+function setStr(xml, ref, s){
+  return setCell(xml, ref, "<is><t xml:space=\"preserve\">" + esc(s) + "</t></is>", "inlineStr");
+}
+function setBlank(xml, ref){ return setCell(xml, ref, null, null); }
+
+/* ══════════ 검산 ══════════ */
+function audit(s, prevBal){
+  var itemSum = s.items.reduce(function(a,b){ return a + b.amount; }, 0);
+  var lineOk = s.items.every(function(it){ return it.qty * it.price === it.amount; });
+  var paySum = s.pays.reduce(function(a,b){ return a + b; }, 0);
+  var dc = Math.round(paySum * DC_RATE);
+  var calc = prevBal + paySum + dc - s.sumAmount;
+  s.paySum = paySum; s.dc = dc; s.itemSum = itemSum; s.calcBal = calc; s.prevBal = prevBal;
+  s.okSum = itemSum === s.sumAmount;
+  s.okLine = lineOk;
+  s.okBal = calc === s.balance;
+  s.ok = s.okSum && s.okLine && s.okBal;
+  s.dcWarn = s.dcAmount > 0 && s.dcAmount !== dc;
+  return s;
+}
+
+/** 차액이 한 자릿수 오독으로 설명되는지 */
+function diagnose(gap){
+  var g = Math.abs(gap), names = ["일","십","백","천","만","십만","백만","천만"];
+  for (var d = 0; d < names.length; d++) {
+    var unit = Math.pow(10, d);
+    if (g % unit === 0 && g / unit < 10 && g / unit > 0) {
+      return names[d] + " 자리 숫자를 한 자리 잘못 읽었을 가능성이 큽니다.";
+    }
+  }
+  return "여러 칸이 어긋났을 수 있습니다. 사진을 다시 확인하세요.";
+}
+
+/* ══════════ 그리기 ══════════ */
+function active(){ return slips.filter(function(s){ return !s.removed; }); }
+
+function render(){
+  var list = active().sort(function(a,b){ return String(a.no).localeCompare(String(b.no)); });
+  var prev = book ? book.lastBal : 0;
+  list.forEach(function(s){ audit(s, prev); prev = s.balance; });
+
+  $("dropMeta").textContent = list.length ? list.length + "장" : "올린 명세표 없음";
+  $("slipsBox").hidden = slips.length === 0;
+  $("saveBox").hidden = list.length === 0;
+
+  var bad = list.filter(function(s){ return !s.ok; }).length;
+  $("auditMeta").textContent = list.length
+    ? (bad ? (list.length - bad) + "장 통과 · " + bad + "장 확인 필요" : list.length + "장 모두 통과")
+    : "";
+
+  $("slips").innerHTML = slips.map(function(s){
+    return s.removed ? goneHTML(s) : slipHTML(s);
+  }).join("");
+
+  // 미리보기
+  var base = book ? book.lastRow : 0;
+  $("rowMeta").textContent = book ? SHEET_NAME + " · " + (base+1) + "행부터" : "엑셀을 먼저 고르세요";
+  $("prevBody").innerHTML = list.map(function(s, i){
+    return "<tr><td>" + (base + 1 + i) + "</td><td>" + esc(s.date) + "</td><td>" + s.lastSeq
+      + "</td><td>" + fmt(s.sumAmount) + "</td><td>" + (s.paySum ? fmt(s.paySum) : "—")
+      + '</td><td style="color:#9ca3af">수식 유지</td><td' + (s.okBal ? "" : ' class="warn"') + ">"
+      + fmt(s.balance) + (s.okBal ? "" : " ⚠") + "</td><td>" + s.items.length + "줄</td></tr>";
+  }).join("");
+
+  var canSave = book && list.length > 0 && bad === 0;
+  $("saveBtn").disabled = !canSave;
+  $("saveBtn").textContent = list.length ? "복사본 만들고 " + list.length + "줄 저장" : "저장할 줄 없음";
+  var why = $("why");
+  if (!book) { why.textContent = "공급가 엑셀 원본을 먼저 고르세요."; why.className = "why"; }
+  else if (!list.length) { why.textContent = "올린 명세표가 없습니다."; why.className = "why ok"; }
+  else if (bad) { why.textContent = bad + "장의 검산이 맞지 않아 저장이 막혀 있습니다."; why.className = "why"; }
+  else { why.textContent = "검산을 모두 통과했습니다. 원본은 그대로 두고 복사본에 씁니다."; why.className = "why ok"; }
+}
+
+function slipHTML(s){
+  var rows = "";
+  s.pays.forEach(function(p, i){
+    rows += '<tr class="pay"><td class="s">·</td><td>입금</td><td class="r">—</td><td class="r">—</td><td class="r">' + fmt(p) + "</td></tr>";
+  });
+  s.items.forEach(function(it, i){
+    rows += '<tr><td class="s">' + (i+1) + "</td><td>" + esc(it.name)
+      + '</td><td class="r" contenteditable data-i="' + s.id + '" data-f="qty" data-n="' + i + '">' + it.qty
+      + '</td><td class="r" contenteditable data-i="' + s.id + '" data-f="price" data-n="' + i + '">' + fmt(it.price)
+      + '</td><td class="r" contenteditable data-i="' + s.id + '" data-f="amount" data-n="' + i + '">' + fmt(it.amount)
+      + "</td></tr>";
+  });
+
+  var alert = "";
+  if (!s.okBal) {
+    var gap = s.balance - s.calcBal;
+    alert = '<div class="alert"><h3>잔금이 ' + fmt(Math.abs(gap)) + "원 어긋납니다</h3>"
+      + "<p>사진에서 읽은 잔금과 직전 줄에서 계산한 잔금이 다릅니다. 고치기 전에는 저장하지 않습니다.</p>"
+      + '<div class="gaps"><div><dt>계산한 잔금</dt><dd>' + fmt(s.calcBal) + "</dd></div>"
+      + '<div class="hot"><dt>사진에서 읽음</dt><dd>' + fmt(s.balance) + "</dd></div>"
+      + '<div class="hot"><dt>차액</dt><dd>' + (gap>0?"+":"−") + fmt(Math.abs(gap)) + "</dd></div></div>"
+      + '<div class="hint"><b>짚이는 곳</b> — ' + diagnose(gap) + "</div>"
+      + '<div class="fixrow"><label>잔금 고쳐 넣기</label>'
+      + '<input class="amt" type="text" data-bal="' + s.id + '" value="' + fmt(s.balance) + '">'
+      + '<button class="pri mini" data-usecalc="' + s.id + '">계산값 ' + fmt(s.calcBal) + "으로</button></div></div>";
+  } else if (!s.okSum) {
+    alert = '<div class="alert"><h3>품목 합계가 공급가액과 다릅니다</h3>'
+      + "<p>품목 합계 " + fmt(s.itemSum) + "원, 공급가액 " + fmt(s.sumAmount) + "원. 수량이나 금액 칸을 눌러 고치세요.</p></div>";
+  }
+  if (s.dcWarn) {
+    alert += '<div class="hint" style="margin-top:9px">명세표의 DC 금액 ' + fmt(s.dcAmount)
+      + "원이 12% 계산값 " + fmt(s.dc) + "원과 다릅니다. 요율이 바뀌었는지 확인하세요.</div>";
+  }
+
+  return '<div class="slip' + (s.ok ? "" : " bad") + '">'
+    + '<div class="slip-h"><span class="slip-no">No.' + esc(s.no) + "</span>"
+    + '<span class="slip-date">' + esc(s.date) + "</span>"
+    + '<span class="slip-cnt">순번 ' + s.lastSeq + " · 품목 " + s.items.length + "줄"
+    + (s.pays.length ? " · 입금 " + s.pays.length + "건" : "") + "</span>"
+    + '<span class="badge ' + (s.ok?"ok":"no") + '">' + (s.ok ? "검산 통과" : "확인 필요") + "</span>"
+    + '<span class="slip-act"><button class="mini" data-reread="' + s.id + '">다시 읽기</button>'
+    + '<button class="mini danger" data-remove="' + s.id + '">지우기</button></span></div>'
+    + '<div class="scroll"><table class="it"><thead><tr><th class="s">#</th><th>품명</th>'
+    + '<th class="r">수량</th><th class="r">단가</th><th class="r">금액</th></tr></thead><tbody>'
+    + rows + "</tbody></table></div>"
+    + '<div class="sum"><div><dt>공급가액</dt><dd>' + fmt(s.sumAmount) + "</dd></div>"
+    + "<div><dt>선충전금액</dt><dd>" + (s.paySum ? fmt(s.paySum) : "—")
+    + (s.pays.length > 1 ? "<small>" + s.pays.length + "건 합산</small>" : "") + "</dd></div>"
+    + "<div><dt>DC 12%</dt><dd>" + fmt(s.dc) + "<small>F열 수식이 계산</small></dd></div>"
+    + "<div><dt>잔금</dt><dd>" + fmt(s.balance) + "</dd></div></div>"
+    + '<div class="audit"><ul class="chk">'
+    + chk(s.okSum, "품목 " + s.items.length + "줄 합계가 공급가액과 같습니다", fmt(s.itemSum) + " = " + fmt(s.sumAmount))
+    + chk(s.okLine, "모든 줄에서 수량 × 단가 = 금액", "")
+    + chk(s.okBal, "잔금이 직전 줄에서 이어집니다",
+        fmt(s.prevBal) + " + " + fmt(s.paySum) + " + " + fmt(s.dc) + " − " + fmt(s.sumAmount) + " = " + fmt(s.calcBal))
+    + "</ul>" + alert + "</div></div>";
+}
+function chk(ok, text, fx){
+  return '<li><span class="mk ' + (ok?"y":"n") + '">' + (ok?"✓":"✕") + "</span><span>"
+    + (ok ? text : text.replace("습니다","지 않습니다").replace("같지 않습니다","같지 않습니다"))
+    + (fx ? ' <span class="fx">' + fx + "</span>" : "") + "</span></li>";
+}
+function goneHTML(s){
+  return '<div class="gone"><span><b>No.' + esc(s.no) + "</b> 를 뺐습니다. 엑셀 미리보기에서도 빠졌습니다.</span>"
+    + '<button class="mini" data-restore="' + s.id + '">되살리기</button></div>';
+}
+
+/* ══════════ 사진 읽기 ══════════ */
+var SYSTEM = [
+  "한국 거래명세표 사진에서 값을 그대로 읽어 JSON 하나만 출력합니다. 설명이나 코드펜스를 붙이지 않습니다.",
+  "",
+  "형식:",
+  '{"no":"1003","date":"2026-09-07","sumAmount":853000,"lastSeq":6,',
+  ' "pays":[1000000,5000000],"dcAmount":720000,"balance":26930630,',
+  ' "items":[{"name":"060 지퍼 타포린백 WL 1호","qty":35,"price":5200,"amount":182000}]}',
+  "",
+  "규칙:",
+  "- no 는 우측 상단 No. 뒤의 번호입니다.",
+  "- date 는 좌측 상단의 년 월 일을 YYYY-MM-DD 로 씁니다.",
+  "- sumAmount 는 상단 '공급가액' 칸의 금액입니다.",
+  "- lastSeq 는 표에서 내용이 있는 마지막 순번입니다. 입금 줄도 셉니다.",
+  "- 단가와 금액이 모두 0 이고 품명이 '입금' 으로 시작하는 줄은 품목이 아니라 입금입니다.",
+  "  그 줄의 괄호 안 금액을 pays 배열에 넣습니다. 'DC' 라고 적힌 줄의 금액은 dcAmount 에 넣고 pays 에는 넣지 않습니다.",
+  "- items 에는 실제 품목 줄만 넣습니다. name 은 품명 칸을 그대로 옮깁니다.",
+  "- balance 는 우측 하단 '잔금' 칸의 금액입니다. '미수' 나 '소계' 가 아닙니다.",
+  "- 모든 숫자는 쉼표 없는 정수로 씁니다. 값을 추측하거나 반올림하지 않습니다.",
+  "- 읽히지 않는 칸은 0 으로 둡니다."
+].join("\n");
+
+function callOCR(b64, mediaType){
+  var key = $("apiKey").value.trim();
+  if (!key) { return Promise.reject(new Error("Anthropic API 키를 먼저 넣으세요.")); }
+  var body = {
+    model: MODEL,
+    max_tokens: 4000,
+    system: SYSTEM,
+    messages: [{ role: "user", content: [
+      { type: "image", source: { type: "base64", media_type: mediaType, data: b64 } },
+      { type: "text", text: "이 거래명세표를 JSON 으로 읽어주세요." }
+    ]}]
+  };
+  var payload = JSON.stringify(body);
+
+  function post(url, headers){
+    return fetch(url, { method:"POST", headers: headers, body: payload }).then(function(r){
+      return r.text().then(function(t){
+        var d;
+        try { d = JSON.parse(t); }
+        catch (e) { throw new Error("__NOT_JSON__"); }   // 중계가 없으면 HTML 이 온다
+        if (!r.ok) {
+          throw new Error((d && d.error && d.error.message) || (d && d.detail) || ("오류 " + r.status));
+        }
+        return d;
+      });
+    });
+  }
+  function direct(){
+    return post("https://api.anthropic.com/v1/messages", {
+      "content-type": "application/json", "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    });
+  }
+
+  // 배포판에는 서버 중계가 있다. 로컬 서버나 로컬 파일로 열었으면 중계가 없으므로
+  // 브라우저에서 Anthropic 을 바로 부른다. 중계를 못 찾으면 조용히 그쪽으로 넘어간다.
+  var canProxy = location.protocol === "http:" || location.protocol === "https:";
+  var first = canProxy
+    ? post("../api/slip-ocr", { "content-type": "application/json", "x-anthropic-key": key })
+        .catch(function(e){
+          if (String(e.message) === "__NOT_JSON__" || String(e.message).indexOf("Failed to fetch") !== -1) {
+            return direct();
+          }
+          throw e;
+        })
+    : direct();
+
+  return first
+    .catch(function(e){
+      if (String(e.message) === "__NOT_JSON__") {
+        throw new Error("사진 읽기 서버에 닿지 못했습니다.");
+      }
+      if (String(e.message).indexOf("Failed to fetch") !== -1) {
+        throw new Error("사진 읽기 요청이 막혔습니다. 인터넷 연결과 API 키를 확인하세요.");
+      }
+      throw e;
+    })
+    .then(function(d){
+      var text = (d.content||[]).filter(function(b){ return b.type==="text"; })
+        .map(function(b){ return b.text; }).join("").trim();
+      var m = text.match(/\{[\s\S]*\}/);
+      if (!m) { throw new Error("사진에서 명세표를 읽지 못했습니다."); }
+      return JSON.parse(m[0]);
+    });
+}
+
+function fileToB64(file){
+  return new Promise(function(res, rej){
+    var fr = new FileReader();
+    fr.onload = function(){ res(String(fr.result).split(",")[1]); };
+    fr.onerror = function(){ rej(new Error("사진을 읽지 못했습니다.")); };
+    fr.readAsDataURL(file);
+  });
+}
+
+function addFiles(files){
+  var imgs = Array.prototype.slice.call(files).filter(function(f){ return f.type.indexOf("image/") === 0; });
+  if (!imgs.length) { return; }
+  showErr("");
+  $("drop").innerHTML = '<b class="busy">사진 ' + imgs.length + "장 읽는 중…</b>잠시 기다려 주세요";
+
+  var jobs = imgs.map(function(f){
+    return fileToB64(f).then(function(b64){
+      return callOCR(b64, f.type === "image/jpg" ? "image/jpeg" : f.type);
+    }).then(function(d){
+      var dup = slips.filter(function(s){ return !s.removed && String(s.no) === String(d.no); })[0];
+      if (dup) { throw new Error("No." + d.no + " 는 이미 올라와 있습니다."); }
+      slips.push({
+        id: ++seq,
+        no: d.no || "?", date: d.date || "",
+        sumAmount: num(d.sumAmount), lastSeq: num(d.lastSeq),
+        pays: (d.pays||[]).map(num).filter(function(n){ return n > 0; }),
+        dcAmount: num(d.dcAmount), balance: num(d.balance),
+        items: (d.items||[]).map(function(it){
+          return { name: String(it.name||""), qty: num(it.qty), price: num(it.price), amount: num(it.amount) };
+        }),
+        removed: false
+      });
+    });
+  });
+
+  Promise.allSettled(jobs).then(function(rs){
+    var fails = rs.filter(function(r){ return r.status === "rejected"; });
+    resetDrop();
+    if (fails.length) { showErr(fails.map(function(f){ return f.reason.message; }).join(" / ")); }
+    render();
+  });
+}
+function resetDrop(){
+  $("drop").innerHTML = "<b>카카오톡에서 사진을 여기로 끌어다 놓으세요</b>"
+    + '끌어놓기가 안 되면 사진을 복사하고 <span class="kbd">Ctrl</span> <span class="kbd">V</span> · 클릭하면 파일에서 고릅니다';
+}
+
+/* ══════════ 저장 ══════════ */
+function save(){
+  var list = active().sort(function(a,b){ return String(a.no).localeCompare(String(b.no)); });
+  if (!book || !list.length) { return; }
+  try {
+    var xml = book.xml, row = book.lastRow;
+    list.forEach(function(s){
+      row += 1;
+      xml = setNum(xml, "B" + row, toSerial(s.date));
+      xml = setNum(xml, "C" + row, s.lastSeq);
+      xml = setNum(xml, "D" + row, s.sumAmount);
+      xml = s.paySum ? setNum(xml, "E" + row, s.paySum) : setBlank(xml, "E" + row);
+      xml = setNum(xml, "G" + row, s.balance);
+      xml = setStr(xml, "H" + row, s.items.map(function(it){
+        return it.name + "   " + it.qty;
+      }).join("\n"));
+    });
+
+    var out = {};
+    Object.keys(book.files).forEach(function(k){ out[k] = book.files[k]; });
+    out[book.sheetPath] = new TextEncoder().encode(xml);
+    delete out["xl/calcChain.xml"];   // 셀을 고쳤으니 엑셀이 다시 만들게 둔다
+
+    // 상단 합계와 잔금 요약이 캐시값으로 남지 않도록, 열 때 전체 재계산시킨다
+    var wbXml = new TextDecoder().decode(book.files["xl/workbook.xml"]);
+    if (wbXml.indexOf("fullCalcOnLoad") === -1) {
+      wbXml = wbXml.indexOf("<calcPr") !== -1
+        ? wbXml.replace(/<calcPr([^>]*?)\/>/, '<calcPr$1 fullCalcOnLoad="1"/>')
+        : wbXml.replace("</workbook>", '<calcPr fullCalcOnLoad="1"/></workbook>');
+      out["xl/workbook.xml"] = new TextEncoder().encode(wbXml);
+    }
+
+    var zipped = fflate.zipSync(out, { level: 6 });
+    var base = book.name.replace(/\.xlsx$/i, "");
+    var name = base + " " + todayTag() + ".xlsx";
+    var blob = new Blob([zipped], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+
+    pushDone({
+      file: name,
+      folder: $("folder").value.trim() || DEFAULT_FOLDER,
+      detail: (book.lastRow + 1) + "–" + row + "행 · No." + list.map(function(s){return s.no;}).join(", ")
+              + " · 잔금 " + fmt(list[list.length-1].balance)
+    });
+
+    slips = []; book.xml = xml; book.lastRow = row;
+    book.lastBal = list[list.length-1].balance;
+    render();
+    showErr("");
+    alert("복사본을 만들었습니다.\n\n" + name
+      + "\n\n다운로드 폴더에 저장되었습니다. 원본이 있는 폴더로 옮겨 두면 다음에 이어서 쓰기 좋습니다.");
+  } catch(e) {
+    showErr("저장하지 못했습니다 — " + e.message);
+  }
+}
+
+/* ══════════ 이벤트 ══════════ */
+var drop = $("drop");
+["dragenter","dragover"].forEach(function(ev){
+  drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add("over"); });
+});
+["dragleave","drop"].forEach(function(ev){
+  drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove("over"); });
+});
+drop.addEventListener("drop", function(e){
+  e.preventDefault();
+  var dt = e.dataTransfer;
+  if (dt && dt.files && dt.files.length) { addFiles(dt.files); }
+});
+drop.addEventListener("click", function(){ $("imgInput").click(); });
+$("imgInput").addEventListener("change", function(e){ addFiles(e.target.files); e.target.value = ""; });
+
+document.addEventListener("paste", function(e){
+  var items = (e.clipboardData && e.clipboardData.files) || [];
+  if (items.length) { e.preventDefault(); addFiles(items); }
+});
+
+$("xlsxPick").addEventListener("click", function(){ $("xlsxInput").click(); });
+$("xlsxInput").addEventListener("change", function(e){
+  var f = e.target.files[0];
+  if (!f) { return; }
+  readBook(f).catch(function(err){ showErr("엑셀을 읽지 못했습니다 — " + err.message); });
+  e.target.value = "";
+});
+
+$("saveBtn").addEventListener("click", save);
+
+/* 카드 안 버튼 · 편집 */
+document.addEventListener("click", function(e){
+  var t = e.target, d = t.dataset || {};
+  if (d.remove) { byId(+d.remove).removed = true; render(); }
+  else if (d.restore) { byId(+d.restore).removed = false; render(); }
+  else if (d.reread) {
+    var s = byId(+d.reread);
+    if (confirm("No." + s.no + " 를 목록에서 빼고 사진을 다시 올리시겠습니까?")) {
+      slips = slips.filter(function(x){ return x.id !== s.id; });
+      render();
+    }
+  }
+  else if (d.usecalc) { var s2 = byId(+d.usecalc); s2.balance = s2.calcBal; render(); }
+  else if (d.open !== undefined) {
+    var r = loadDone()[+d.open];
+    var path = (r.folder || DEFAULT_FOLDER).replace(/\\/g,"/").replace(/\/$/,"") + "/" + r.file;
+    location.href = "ms-excel:ofe|u|file:///" + encodeURI(path);
+  }
+  else if (d.copy !== undefined) {
+    var r2 = loadDone()[+d.copy];
+    var p = (r2.folder || DEFAULT_FOLDER).replace(/\/$/,"") + "\\" + r2.file;
+    navigator.clipboard.writeText(p).then(function(){ t.textContent = "복사됨"; setTimeout(function(){ t.textContent = "경로 복사"; }, 1500); });
+  }
+});
+document.addEventListener("input", function(e){
+  var d = e.target.dataset || {};
+  if (d.bal) { byId(+d.bal).balance = num(e.target.value); }
+});
+document.addEventListener("blur", function(e){
+  var d = e.target.dataset || {};
+  if (d.i && d.f) {
+    var s = byId(+d.i);
+    s.items[+d.n][d.f] = num(e.target.textContent);
+    render();
+  }
+}, true);
+function byId(id){ return slips.filter(function(s){ return s.id === id; })[0]; }
+
+/* 저장된 설정 */
+(function init(){
+  var k = localStorage.getItem(K_KEY); if (k) { $("apiKey").value = k; }
+  $("folder").value = localStorage.getItem(K_FOLDER) || DEFAULT_FOLDER;
+  $("apiKey").addEventListener("change", function(){ localStorage.setItem(K_KEY, $("apiKey").value.trim()); });
+  $("folder").addEventListener("change", function(){ localStorage.setItem(K_FOLDER, $("folder").value.trim()); });
+  $("readyMeta").textContent = location.protocol === "file:" ? "로컬 파일로 열림 — 사진 읽기는 브라우저에서 바로 부릅니다" : "";
+  renderDone();
+  render();
+})();
+</script>
+</body>
+</html>
