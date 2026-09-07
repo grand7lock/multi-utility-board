@@ -113,6 +113,46 @@
   .err{background:#fef2f2;border:1px solid #fca5a5;color:#b42318;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px}
   .busy{font-size:13px;color:#2563eb;font-weight:700}
   [hidden]{display:none!important}
+
+  /* 메뉴 */
+  .menu{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;border-bottom:2px solid #e5e7eb;padding-bottom:0}
+  .menu button{border:1px solid #e5e7eb;border-bottom:none;border-radius:10px 10px 0 0;background:#fafafa;
+    color:#6b7280;font-size:13.5px;font-weight:700;padding:11px 16px;margin-bottom:-2px}
+  .menu button:hover:not(.on){background:#f3f4f6;color:#374151}
+  .menu button.on{background:#fff;color:#1d4ed8;border-color:#e5e7eb;border-bottom:2px solid #fff;position:relative;z-index:1}
+  .mock{display:inline-block;font-size:10.5px;font-weight:700;color:#8a5d00;background:#fef3c7;
+    border:1px solid #fde68a;border-radius:5px;padding:2px 7px;margin-left:7px;vertical-align:2px}
+
+  /* 차이 표 */
+  table.cmp{width:100%;border-collapse:collapse;font-size:13px}
+  table.cmp th{text-align:left;font-size:10.5px;letter-spacing:.06em;color:#9ca3af;font-weight:700;
+    padding:8px 10px;border-bottom:1px solid #e5e7eb;white-space:nowrap}
+  table.cmp td{padding:7px 10px;border-bottom:1px solid #f3f4f6}
+  table.cmp .r{text-align:right;font-family:Consolas,monospace;font-variant-numeric:tabular-nums}
+  table.cmp .sku{font-family:Consolas,monospace;font-size:11.5px;color:#9ca3af}
+  table.cmp tr.gap{background:#fffbeb}
+  table.cmp tr.gap td{border-bottom-color:#fde68a}
+  table.cmp .over{color:#0b6e4f;font-weight:700}
+  table.cmp .short{color:#b42318;font-weight:700}
+  table.cmp .zero{color:#d1d5db}
+
+  .tally{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:#f3f4f6;
+    border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb}
+  .tally > div{background:#fff;padding:11px 14px}
+  .tally dt{margin:0;font-size:10.5px;letter-spacing:.06em;color:#9ca3af;font-weight:700}
+  .tally dd{margin:3px 0 0;font-size:18px;font-weight:700;font-family:Consolas,monospace;font-variant-numeric:tabular-nums}
+  .tally dd.hot{color:#b42318}
+
+  /* 카톡 문구 */
+  .kakao{display:flex;flex-direction:column;gap:10px}
+  .fmtrow{display:flex;gap:7px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:#6b7280}
+  .fmtrow button.on{background:#2563eb;border-color:#2563eb;color:#fff}
+  textarea.msg{width:100%;min-height:190px;font-family:"Malgun Gothic","맑은 고딕",sans-serif;font-size:13px;
+    line-height:1.65;padding:13px 15px;border:1px solid #d1d5db;border-radius:10px;resize:vertical;
+    background:#fefce8;color:#1f2937}
+  textarea.msg:focus{outline:2px solid #2563eb;outline-offset:1px}
+  .sendrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  .sendrow .grow{flex:1;min-width:140px;font-size:12.5px;color:#9ca3af}
 </style>
 </head>
 <body>
@@ -135,6 +175,78 @@
 
   <!-- 비밀번호를 통과해야 아래가 보인다 -->
   <div id="main" hidden>
+
+  <nav class="menu">
+    <button data-tab="cmp" class="on">📦 플토 실제 입고 수량과 거래명세표 비교하기</button>
+    <button data-tab="slip">🧾 타카라 명세표 입력기</button>
+  </nav>
+
+  <!-- ══════════ 입고 비교 (목업) ══════════ -->
+  <section id="tab-cmp">
+
+    <div id="cmpErr" class="err" hidden></div>
+
+    <div class="box">
+      <div class="box-h">① 재고 파일 <span class="meta">타카라 입고 확인 시트 · 읽기만 합니다</span></div>
+      <div class="box-b">
+        <div class="row2">
+          <div>
+            <label class="f">플토 재고 일괄 수정.xlsx</label>
+            <div class="btnrow">
+              <button class="pri" id="cmpPick">엑셀 파일 고르기</button>
+            </div>
+            <input type="file" id="cmpInput" accept=".xlsx" hidden>
+          </div>
+        </div>
+        <p class="note" id="cmpInfo">아직 고르지 않았습니다.
+          재고 요청 수량을 거래명세표 수량으로 보고 실제 입고와 견줍니다.</p>
+      </div>
+    </div>
+
+    <div class="box" id="cmpResult" hidden>
+      <div class="box-h">② 비교 결과 <span class="meta" id="cmpMeta"></span></div>
+      <dl class="tally" id="cmpTally"></dl>
+      <div class="box-b" style="padding-bottom:8px">
+        <div class="fmtrow">
+          <button id="onlyGap" class="on mini">차이 난 것만</button>
+          <button id="showAll" class="mini">전체 보기</button>
+        </div>
+      </div>
+      <div class="scroll">
+        <table class="cmp">
+          <thead><tr>
+            <th>SKU 관리 코드</th><th class="r">명세표</th><th class="r">실제 입고</th><th class="r">차이</th><th>판정</th>
+          </tr></thead>
+          <tbody id="cmpBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="box" id="cmpKakao" hidden>
+      <div class="box-h">③ 타카라에 보낼 카톡 <span class="meta" id="kakaoMeta"></span></div>
+      <div class="box-b kakao">
+        <div class="fmtrow">
+          <span>문구</span>
+          <button class="mini on" data-fmt="full">자세히</button>
+          <button class="mini" data-fmt="short">간단히</button>
+          <span style="flex:1"></span>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400">
+            <input type="checkbox" id="withSku" style="width:auto"> SKU 코드도 넣기
+          </label>
+        </div>
+        <textarea class="msg" id="msg" spellcheck="false"></textarea>
+        <div class="sendrow">
+          <button class="pri" id="copyMsg">문구 복사</button>
+          <button id="openKakao">카카오톡 열기</button>
+          <span class="grow" id="copyNote">복사한 뒤 타카라 대화창에 붙여넣으세요.</span>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══════════ 명세표 입력기 ══════════ -->
+  <section id="tab-slip" hidden>
 
   <div id="err" class="err" hidden></div>
 
@@ -217,6 +329,8 @@
     <div class="box-h">⑤ 저장한 파일</div>
     <div id="doneList"></div>
   </div>
+
+  </section>
 
   </div><!-- /#main -->
 </div>
@@ -953,6 +1067,340 @@ function tryPw(){
   var unlocked = false;
   try { unlocked = localStorage.getItem(K_GATE) === "1"; } catch (e) {}
   if (unlocked) { openMain(); } else { $("pw").focus(); }
+})();
+
+
+/* ══════════════════════════════════════════════════════════
+   입고 비교 — 플토 재고 일괄 수정.xlsx 를 읽는다.
+
+   이 엑셀은 절대 고치지 않는다. 쓰기 권한을 아예 요청하지 않고,
+   고른 파일을 메모리에서 읽기만 한다.
+   ══════════════════════════════════════════════════════════ */
+(function compare(){
+  var rows = [], gaps = [], pending = [];
+  var onlyGap = true, fmt = "full";
+  var TARGET_SHEET = "타카라 입고 확인";   // 이 시트 하나만 본다
+  var wbFiles = null, shared = null, srcName = "";
+
+  function cErr(m){ var e = $("cmpErr"); e.textContent = m; e.hidden = !m; }
+
+  /* ── xlsx 읽기 (읽기 전용) ── */
+  function unesc(s){
+    return String(s)
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, function(_, d){ return String.fromCharCode(+d); })
+      .replace(/&amp;/g, "&");
+  }
+  function colNum(letters){
+    var n = 0;
+    for (var i = 0; i < letters.length; i++) { n = n * 26 + (letters.charCodeAt(i) - 64); }
+    return n;
+  }
+  function textOf(chunk){
+    var out = "", re = /<t[^>]*>([\s\S]*?)<\/t>/g, m;
+    while ((m = re.exec(chunk))) { out += m[1]; }
+    return unesc(out);
+  }
+  function sharedStrings(files){
+    var f = files["xl/sharedStrings.xml"];
+    if (!f) { return []; }
+    var xml = new TextDecoder().decode(f), out = [], re = /<si[^>]*>([\s\S]*?)<\/si>/g, m;
+    while ((m = re.exec(xml))) { out.push(textOf(m[1])); }
+    return out;
+  }
+  /** 시트 이름 → 패키지 안 경로 */
+  function sheetPaths(files){
+    var dec = new TextDecoder();
+    var wb = dec.decode(files["xl/workbook.xml"]);
+    var rels = dec.decode(files["xl/_rels/workbook.xml.rels"]);
+    var relMap = {}, rr = /<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g, rm;
+    while ((rm = rr.exec(rels))) { relMap[rm[1]] = rm[2]; }
+    rr = /<Relationship[^>]*Target="([^"]+)"[^>]*Id="([^"]+)"/g;
+    while ((rm = rr.exec(rels))) { if (!relMap[rm[2]]) { relMap[rm[2]] = rm[1]; } }
+
+    var out = [], sr = /<sheet\b([^>]*)\/?>/g, sm;
+    while ((sm = sr.exec(wb))) {
+      var a = sm[1];
+      var nm = (a.match(/\sname="([^"]*)"/) || [])[1];
+      var id = (a.match(/r:id="([^"]*)"/) || [])[1];
+      if (!nm || !id || !relMap[id]) { continue; }
+      var t = relMap[id].replace(/^\/xl\//, "").replace(/^\//, "");
+      out.push({ name: unesc(nm), path: t.indexOf("xl/") === 0 ? t : "xl/" + t });
+    }
+    return out;
+  }
+  /** 시트 XML → grid[행][열] (둘 다 1부터) */
+  function readGrid(xml){
+    var grid = [], rowRe = /<row\b[^>]*\sr="(\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g, rm;
+    while ((rm = rowRe.exec(xml))) {
+      var cells = {}, body = rm[2] || "";
+      var cRe = /<c\b\s+r="([A-Z]+)\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g, cm;
+      while ((cm = cRe.exec(body))) {
+        var col = colNum(cm[1]), attr = cm[2] || "", inner = cm[3] || "";
+        var t = (attr.match(/\st="([^"]+)"/) || [])[1], v;
+        if (t === "inlineStr") {
+          v = textOf(inner);
+        } else {
+          var vm = inner.match(/<v>([\s\S]*?)<\/v>/);
+          if (!vm) { continue; }
+          if (t === "s") { v = shared[+vm[1]]; }
+          else if (t === "str" || t === "e") { v = unesc(vm[1]); }
+          else { var n = parseFloat(vm[1]); v = isNaN(n) ? unesc(vm[1]) : n; }
+        }
+        if (v !== undefined && v !== "") { cells[col] = v; }
+      }
+      grid[+rm[1]] = cells;
+    }
+    return grid;
+  }
+  /** 머리글 줄을 찾는다. 시트마다 시작 줄이 달라서 이름으로 찾는다. */
+  function findHeader(grid){
+    for (var r = 1; r <= 12 && r < grid.length; r++) {
+      var row = grid[r];
+      if (!row) { continue; }
+      var map = {};
+      for (var c in row) {
+        var v = String(row[c]).replace(/\s/g, "");
+        if (v === "SKU코드") { map.sku = +c; }
+        else if (v === "SKU관리코드") { map.name = +c; }
+        else if (v === "재고요청") { map.slip = +c; }
+        else if (v === "실제입고") { map.got = +c; }
+      }
+      if (map.name && map.slip && map.got) { map.row = r; return map; }
+    }
+    return null;
+  }
+
+  /* ── 시트 하나를 비교한다 ── */
+  function loadSheet(sheet){
+    var grid = sheet.grid, h = sheet.header, label = sheet.name;
+    cErr("");
+
+    rows = []; pending = [];
+    for (var r = h.row + 1; r < grid.length; r++) {
+      var row = grid[r];
+      if (!row) { continue; }
+      var name = row[h.name];
+      if (name === undefined || String(name).trim() === "") { continue; }
+      var slip = typeof row[h.slip] === "number" ? row[h.slip] : null;
+      var got = typeof row[h.got] === "number" ? row[h.got] : null;
+      var item = {
+        sku: h.sku ? (row[h.sku] || "") : "",
+        name: String(name),
+        slip: slip === null ? 0 : slip,
+        got: got,
+        gap: got === null || slip === null ? null : got - slip
+      };
+      if (item.gap === null) { pending.push(item); } else { rows.push(item); }
+    }
+    gaps = rows.filter(function(x){ return x.gap !== 0; });
+
+    $("cmpResult").hidden = false;
+    $("cmpKakao").hidden = gaps.length === 0;
+    $("cmpInfo").innerHTML = "<b>" + esc(srcName) + "</b> · " + esc(label) + " — 품목 "
+      + '<span class="num">' + (rows.length + pending.length) + "</span>개를 읽었습니다."
+      + (pending.length ? ' 그중 <span class="num">' + pending.length + "</span>개는 실제 입고 칸이 비어 있어 비교에서 뺐습니다." : "")
+      + " 재고 요청 수량을 거래명세표 수량으로 봅니다.";
+    drawTally();
+    drawTable();
+    drawMsg();
+    if (!gaps.length) {
+      $("kakaoMeta").textContent = "";
+    }
+  }
+
+  /* ── 그리기 ── */
+  function drawTally(){
+    var over = 0, short = 0;
+    gaps.forEach(function(r){ if (r.gap > 0) { over += r.gap; } else { short += -r.gap; } });
+    var cells = [
+      ["확인한 품목", rows.length, false],
+      ["수량이 맞은 품목", rows.length - gaps.length, false],
+      ["차이 난 품목", gaps.length, gaps.length > 0],
+      ["더 온 수량", over ? "+" + over : "0", over > 0],
+      ["덜 온 수량", short ? "−" + short : "0", short > 0]
+    ];
+    if (pending.length) { cells.push(["아직 입고 안 됨", pending.length, false]); }
+    $("cmpTally").innerHTML = cells.map(function(c){
+      return "<div><dt>" + c[0] + '</dt><dd' + (c[2] ? ' class="hot"' : "") + ">" + c[1] + "</dd></div>";
+    }).join("");
+  }
+
+  function drawTable(){
+    var list = onlyGap ? gaps : rows.concat(pending);
+    $("cmpBody").innerHTML = list.map(function(r){
+      var cls = r.gap === null ? "zero" : (r.gap > 0 ? "over" : (r.gap < 0 ? "short" : "zero"));
+      var verdict = r.gap === null ? "아직 입고 안 됨"
+        : (r.gap > 0 ? "더 왔습니다" : (r.gap < 0 ? "덜 왔습니다" : "맞음"));
+      var gapText = r.gap === null ? "—" : (r.gap > 0 ? "+" + r.gap : String(r.gap));
+      return "<tr" + (r.gap ? ' class="gap"' : "") + ">"
+        + "<td>" + esc(r.name) + (r.sku ? '<div class="sku">' + esc(r.sku) + "</div>" : "") + "</td>"
+        + '<td class="r">' + r.slip + "</td>"
+        + '<td class="r">' + (r.got === null ? "—" : r.got) + "</td>"
+        + '<td class="r ' + cls + '">' + gapText + "</td>"
+        + '<td class="' + cls + '">' + verdict + "</td></tr>";
+    }).join("");
+    $("cmpMeta").textContent = onlyGap
+      ? "차이 난 " + gaps.length + "건만 보는 중"
+      : "전체 " + list.length + "건 보는 중";
+    $("showAll").textContent = "전체 " + (rows.length + pending.length) + "개";
+  }
+
+  function today(){
+    var d = new Date(), p = function(n){ return n < 10 ? "0" + n : "" + n; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
+
+  function buildMsg(){
+    if (!gaps.length) { return ""; }
+    var withSku = $("withSku").checked;
+    var over = gaps.filter(function(r){ return r.gap > 0; });
+    var short = gaps.filter(function(r){ return r.gap < 0; });
+    var line = function(r){ return r.name + (withSku && r.sku ? "  (" + r.sku + ")" : ""); };
+    var out = [];
+
+    if (fmt === "short") {
+      out.push("[입고 수량 확인] " + today());
+      gaps.forEach(function(r){ out.push(line(r) + "  " + (r.gap > 0 ? "+" : "") + r.gap); });
+      return out.join("\n");
+    }
+
+    out.push("[입고 수량 확인 요청]");
+    out.push(today() + " 입고분");
+    if (over.length) {
+      out.push("");
+      out.push("■ 더 온 것");
+      over.forEach(function(r){
+        out.push(line(r));
+        out.push("명세표 " + r.slip + " → 실입고 " + r.got + " (+" + r.gap + ")");
+      });
+    }
+    if (short.length) {
+      out.push("");
+      out.push("■ 덜 온 것");
+      short.forEach(function(r){
+        out.push(line(r));
+        out.push("명세표 " + r.slip + " → 실입고 " + r.got + " (" + r.gap + ")");
+      });
+    }
+    out.push("");
+    out.push("확인 부탁드립니다.");
+    return out.join("\n");
+  }
+
+  function drawMsg(){
+    $("msg").value = buildMsg();
+    $("kakaoMeta").textContent = gaps.length ? "차이 난 " + gaps.length + "건" : "";
+  }
+
+  /* ── 파일 고르기 (읽기 전용) ── */
+  function useFile(file){
+    srcName = file.name;
+    cErr("");
+    return file.arrayBuffer().then(function(buf){
+      wbFiles = fflate.unzipSync(new Uint8Array(buf));
+      shared = sharedStrings(wbFiles);
+
+      var all = sheetPaths(wbFiles), target = null;
+      for (var i = 0; i < all.length; i++) {
+        if (all[i].name === TARGET_SHEET) { target = all[i]; break; }
+      }
+      if (!target) {
+        throw new Error("'" + TARGET_SHEET + "' 시트가 없습니다. 파일을 잘못 고르셨는지 확인해 주세요.");
+      }
+      target.grid = readGrid(new TextDecoder().decode(wbFiles[target.path]));
+      target.header = findHeader(target.grid);
+      if (!target.header) {
+        throw new Error("'" + TARGET_SHEET + "' 시트에서 머리글을 찾지 못했습니다. SKU관리코드 · 재고 요청 · 실제 입고 칸이 있어야 합니다.");
+      }
+      loadSheet(target);
+    }).catch(function(e){
+      cErr("엑셀을 읽지 못했습니다 — " + e.message);
+      $("cmpResult").hidden = true;
+      $("cmpKakao").hidden = true;
+      $("cmpTally").innerHTML = "";
+      $("cmpBody").innerHTML = "";
+      $("msg").value = "";
+    });
+  }
+
+  $("cmpPick").addEventListener("click", function(){
+    // showOpenFilePicker 는 읽기 권한만 준다. 마지막 폴더도 기억한다.
+    if (typeof window.showOpenFilePicker === "function") {
+      window.showOpenFilePicker({
+        id: "pelto-xlsx",
+        multiple: false,
+        types: [{ description: "엑셀 파일", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"] } }]
+      }).then(function(hs){ return hs[0].getFile(); })
+        .then(useFile)
+        .catch(function(e){ if (e && e.name !== "AbortError") { cErr("파일을 열지 못했습니다 — " + e.message); } });
+      return;
+    }
+    $("cmpInput").click();
+  });
+  $("cmpInput").addEventListener("change", function(e){
+    var f = e.target.files[0];
+    if (f) { useFile(f); }
+    e.target.value = "";
+  });
+
+  /* ── 화면 조작 ── */
+  $("onlyGap").addEventListener("click", function(){
+    onlyGap = true;
+    this.classList.add("on"); $("showAll").classList.remove("on");
+    drawTable();
+  });
+  $("showAll").addEventListener("click", function(){
+    onlyGap = false;
+    this.classList.add("on"); $("onlyGap").classList.remove("on");
+    drawTable();
+  });
+  document.querySelectorAll("[data-fmt]").forEach(function(b){
+    b.addEventListener("click", function(){
+      fmt = b.dataset.fmt;
+      document.querySelectorAll("[data-fmt]").forEach(function(x){ x.classList.toggle("on", x === b); });
+      drawMsg();
+    });
+  });
+  $("withSku").addEventListener("change", drawMsg);
+
+  $("copyMsg").addEventListener("click", function(){
+    var t = $("msg");
+    if (!t.value) { return; }
+    navigator.clipboard.writeText(t.value).then(function(){
+      $("copyNote").textContent = "복사했습니다. 타카라 대화창에 붙여넣으세요.";
+      setTimeout(function(){ $("copyNote").textContent = "복사한 뒤 타카라 대화창에 붙여넣으세요."; }, 2500);
+    }, function(){
+      t.select();
+      $("copyNote").textContent = "Ctrl C 로 복사하세요.";
+    });
+  });
+  $("openKakao").addEventListener("click", function(){
+    $("copyNote").textContent = "문구를 복사한 뒤 카카오톡 창에 붙여넣으세요.";
+  });
+
+  /* ── 메뉴 ── */
+  var titles = {
+    cmp: ["플토 실제 입고 수량과 거래명세표 비교하기",
+          "<b>플토 재고 일괄 수정.xlsx</b> 의 입고 확인 시트를 읽어, 실제 입고 수량과 거래명세표 수량이 어긋난 품목을 찾아 카톡 문구로 만듭니다. 엑셀은 읽기만 하고 고치지 않습니다."],
+    slip: ["타카라 명세표 입력기",
+           "거래명세표 사진을 읽어 <b>1 KR_BYA_BENW 공급가.xlsx</b> 의 <b>입출금 내역</b> 시트에 한 줄씩 넣습니다. 원본은 건드리지 않고 복사본을 만듭니다."]
+  };
+  document.querySelectorAll(".menu button").forEach(function(b){
+    b.addEventListener("click", function(){
+      var tab = b.dataset.tab;
+      document.querySelectorAll(".menu button").forEach(function(x){ x.classList.toggle("on", x === b); });
+      $("tab-cmp").hidden = tab !== "cmp";
+      $("tab-slip").hidden = tab !== "slip";
+      document.querySelector("h1").innerHTML = titles[tab][0];
+      document.querySelector(".sub").innerHTML = titles[tab][1];
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+
+  document.querySelector("h1").innerHTML = titles.cmp[0];
+  document.querySelector(".sub").innerHTML = titles.cmp[1];
 })();
 </script>
 </body>
