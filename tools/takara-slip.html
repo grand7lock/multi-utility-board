@@ -28,7 +28,8 @@
   button.danger:hover:not(:disabled){border-color:#b42318;background:#fef2f2}
   button:disabled{opacity:.45;cursor:not-allowed}
   button.mini{font-size:12px;padding:5px 10px}
-  input[type=text],input[type=password]{font-family:inherit;font-size:13px;padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;width:100%}
+  input[type=text],input[type=password],select{font-family:inherit;font-size:13px;padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;width:100%;background:#fff;color:#1f2937}
+  .btnrow{display:flex;gap:7px;flex-wrap:wrap}
   input.amt{font-family:Consolas,monospace;font-variant-numeric:tabular-nums;width:145px}
   label.f{display:block;font-size:12px;color:#6b7280;margin-bottom:4px;font-weight:700}
 
@@ -128,16 +129,26 @@
     <div class="box-b">
       <div class="row2">
         <div>
-          <label class="f" for="xlsxPick">공급가 엑셀 원본</label>
-          <button id="xlsxPick">엑셀 파일 고르기</button>
+          <label class="f">공급가 엑셀</label>
+          <div class="btnrow">
+            <button id="resumeBtn" class="pri" hidden></button>
+            <button id="folderPick" hidden>폴더 고르기</button>
+            <button id="xlsxPick" hidden>엑셀 파일 고르기</button>
+          </div>
           <input type="file" id="xlsxInput" accept=".xlsx" hidden>
         </div>
-        <div>
-          <label class="f" for="folder">저장 폴더 (엑셀 열기 링크에 씁니다)</label>
-          <input type="text" id="folder" placeholder="G:\내 드라이브\PBZ 공유폴더\매입처 [1] KR">
+        <div id="fileSelWrap" hidden>
+          <label class="f" for="fileSel">이어서 쓸 파일</label>
+          <select id="fileSel"></select>
         </div>
       </div>
       <p class="note" id="xlsxInfo">아직 고르지 않았습니다.</p>
+      <div class="row2" style="margin-top:10px">
+        <div>
+          <label class="f" for="folder">폴더 전체 경로 (엑셀 열기 링크에만 씁니다)</label>
+          <input type="text" id="folder" placeholder="G:\내 드라이브\PBZ 공유폴더\매입처 [1] KR">
+        </div>
+      </div>
       <div class="row2" style="margin-top:12px">
         <div>
           <label class="f" for="apiKey">Anthropic API 키 (사진 읽기에 씁니다 · 이 브라우저에만 저장)</label>
@@ -211,6 +222,12 @@ var book = null;      // { name, buf, files, sheetPath, lastRow, lastBal }
 var slips = [];       // { no, date, sumAmount, pays[], dcAmount, balance, items[], lastSeq, removed, calcBal }
 var seq = 0;
 
+// 폴더를 통째로 열어 두면 원본을 고르는 것도, 복사본을 같은 자리에 두는 것도 한 번에 된다.
+// 이 기능은 https 나 localhost 에서만 쓸 수 있다. 로컬 파일로 열면 아래 폴백으로 떨어진다.
+var FS_OK = typeof window.showDirectoryPicker === "function";
+var dirHandle = null;   // 고른 폴더
+var srcHandle = null;   // 지금 읽고 있는 엑셀
+
 /* ══════════ 유틸 ══════════ */
 function $(id){ return document.getElementById(id); }
 function fmt(n){ return (n||0).toLocaleString("en-US"); }
@@ -245,6 +262,94 @@ function renderDone(){
       + '<button class="pri mini" data-open="' + i + '">엑셀 열기</button>'
       + '<button class="mini" data-copy="' + i + '">경로 복사</button></div>';
   }).join("");
+}
+
+/* ══════════ 폴더 기억 ══════════
+   폴더 핸들은 문자열이 아니라 객체라서 localStorage 에 넣을 수 없다.
+   IndexedDB 에는 그대로 들어가므로 거기에 둔다. 다음에 열면 권한만 다시 받는다. */
+function idb(run){
+  return new Promise(function(res, rej){
+    var req = indexedDB.open("takara-slip", 1);
+    req.onupgradeneeded = function(){ req.result.createObjectStore("h"); };
+    req.onerror = function(){ rej(req.error); };
+    req.onsuccess = function(){
+      var db = req.result, tx = db.transaction("h", "readwrite"), r = run(tx.objectStore("h"));
+      tx.oncomplete = function(){ db.close(); res(r && r.result); };
+      tx.onerror = function(){ db.close(); rej(tx.error); };
+    };
+  });
+}
+function idbSet(k, v){ return idb(function(st){ return st.put(v, k); }); }
+function idbGet(k){ return idb(function(st){ return st.get(k); }); }
+
+/** 폴더 안의 xlsx 를 최근에 고친 순서로 모은다 */
+function listFiles(){
+  var items = [], it = dirHandle.values();
+  function step(){
+    return it.next().then(function(r){
+      if (r.done) { return null; }
+      var h = r.value;
+      if (h.kind === "file" && /\.xlsx$/i.test(h.name) && h.name.indexOf("~$") !== 0) {
+        return h.getFile().then(function(f){
+          items.push({ name: h.name, handle: h, time: f.lastModified });
+          return step();
+        }, step);
+      }
+      return step();
+    });
+  }
+  return step().then(function(){
+    items.sort(function(a, b){ return b.time - a.time; });
+    items.sort(function(a, b){                       // '공급가' 가 든 파일을 위로
+      return (a.name.indexOf("공급가") !== -1 ? 0 : 1) - (b.name.indexOf("공급가") !== -1 ? 0 : 1);
+    });
+    var sel = $("fileSel");
+    sel.innerHTML = items.map(function(f, i){
+      return '<option value="' + i + '">' + esc(f.name) + "</option>";
+    }).join("");
+    sel.__items = items;
+    $("fileSelWrap").hidden = items.length === 0;
+    $("folderPick").textContent = "다른 폴더 고르기";
+    if (!items.length) {
+      $("xlsxInfo").textContent = "이 폴더에 xlsx 파일이 없습니다. 다른 폴더를 골라 주세요.";
+      return null;
+    }
+    return openFromList(0);
+  });
+}
+
+function openFromList(i){
+  var f = $("fileSel").__items[i];
+  if (!f) { return Promise.resolve(); }
+  srcHandle = f.handle;
+  return f.handle.getFile().then(readBook).catch(function(e){
+    showErr("엑셀을 읽지 못했습니다 — " + e.message);
+  });
+}
+
+function pickFolder(){
+  return window.showDirectoryPicker({ id: "takara-xlsx", mode: "readwrite" })
+    .then(function(h){
+      dirHandle = h;
+      $("resumeBtn").hidden = true;
+      if (!$("folder").value.trim()) { $("folder").value = DEFAULT_FOLDER; }
+      return idbSet("dir", h).catch(function(){}).then(listFiles);
+    })
+    .catch(function(e){
+      if (e && e.name !== "AbortError") { showErr("폴더를 열지 못했습니다 — " + e.message); }
+    });
+}
+
+/** 지난번 폴더가 남아 있으면 버튼으로 보여 준다. 권한은 눌렀을 때 다시 받는다. */
+function offerResume(){
+  if (!FS_OK) { return; }
+  idbGet("dir").then(function(h){
+    if (!h) { return; }
+    var btn = $("resumeBtn");
+    btn.__handle = h;
+    btn.textContent = "지난번 폴더 이어서 쓰기 · " + h.name;
+    btn.hidden = false;
+  }).catch(function(){});
 }
 
 /* ══════════ 엑셀 원본 읽기 ══════════ */
@@ -629,29 +734,67 @@ function save(){
     }
 
     var zipped = fflate.zipSync(out, { level: 6 });
-    var base = book.name.replace(/\.xlsx$/i, "");
-    var name = base + " " + todayTag() + ".xlsx";
+    // 날짜가 이미 붙은 복사본을 이어받았으면 그 꼬리를 떼고 오늘 날짜를 새로 붙인다
+    var base = book.name.replace(/\.xlsx$/i, "").replace(/\s\d{6}(-\d+)?$/, "");
+    var wanted = base + " " + todayTag() + ".xlsx";
     var blob = new Blob([zipped], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob); a.download = name; a.click();
-    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    var firstRow = book.lastRow + 1;
+    var lastBal = list[list.length - 1].balance;
+    var nos = list.map(function(s){ return s.no; }).join(", ");
 
-    pushDone({
-      file: name,
-      folder: $("folder").value.trim() || DEFAULT_FOLDER,
-      detail: (book.lastRow + 1) + "–" + row + "행 · No." + list.map(function(s){return s.no;}).join(", ")
-              + " · 잔금 " + fmt(list[list.length-1].balance)
+    writeOut(wanted, blob).then(function(r){
+      pushDone({
+        file: r.name,
+        folder: $("folder").value.trim() || DEFAULT_FOLDER,
+        detail: firstRow + "–" + row + "행 · No." + nos + " · 잔금 " + fmt(lastBal)
+      });
+      slips = [];
+      book.xml = xml; book.lastRow = row; book.lastBal = lastBal; book.name = r.name;
+      render();
+      showErr("");
+      if (r.how === "folder") {
+        alert("같은 폴더에 저장했습니다.\n\n" + r.name + "\n\n원본은 건드리지 않았습니다.");
+        return listFiles().catch(function(){});   // 방금 만든 파일이 목록 맨 위로 올라온다
+      }
+      alert("복사본을 만들었습니다.\n\n" + r.name
+        + "\n\n다운로드 폴더에 저장되었습니다. 원본이 있는 폴더로 옮겨 두면 다음에 이어서 쓰기 좋습니다.");
+    }).catch(function(e){
+      showErr("저장하지 못했습니다 — " + e.message);
     });
-
-    slips = []; book.xml = xml; book.lastRow = row;
-    book.lastBal = list[list.length-1].balance;
-    render();
-    showErr("");
-    alert("복사본을 만들었습니다.\n\n" + name
-      + "\n\n다운로드 폴더에 저장되었습니다. 원본이 있는 폴더로 옮겨 두면 다음에 이어서 쓰기 좋습니다.");
   } catch(e) {
     showErr("저장하지 못했습니다 — " + e.message);
   }
+}
+
+/** 폴더를 열어 뒀으면 그 자리에 쓰고, 아니면 다운로드로 내린다 */
+function writeOut(name, blob){
+  if (!dirHandle) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    return Promise.resolve({ how: "download", name: name });
+  }
+  return freeName(name).then(function(finalName){
+    return dirHandle.getFileHandle(finalName, { create: true }).then(function(fh){
+      return fh.createWritable().then(function(w){
+        return w.write(blob)
+          .then(function(){ return w.close(); })
+          .then(function(){ srcHandle = fh; return { how: "folder", name: finalName }; });
+      });
+    });
+  });
+}
+
+/** 같은 이름이 이미 있으면 -2, -3 을 붙인다. 덮어쓰지 않는다. */
+function freeName(name){
+  var base = name.replace(/\.xlsx$/i, ""), n = 1;
+  function tryOne(cand){
+    return dirHandle.getFileHandle(cand).then(function(){
+      n += 1;
+      return tryOne(base + "-" + n + ".xlsx");
+    }, function(){ return cand; });          // 없으면 이 이름을 쓴다
+  }
+  return tryOne(name);
 }
 
 /* ══════════ 이벤트 ══════════ */
@@ -675,10 +818,35 @@ document.addEventListener("paste", function(e){
   if (items.length) { e.preventDefault(); addFiles(items); }
 });
 
+$("folderPick").addEventListener("click", function(){ showErr(""); pickFolder(); });
+
+$("resumeBtn").addEventListener("click", function(){
+  var h = this.__handle;
+  if (!h) { return; }
+  showErr("");
+  h.requestPermission({ mode: "readwrite" }).then(function(p){
+    if (p !== "granted") {
+      showErr("폴더를 쓰려면 권한이 필요합니다. 폴더 고르기로 다시 골라 주세요.");
+      return;
+    }
+    dirHandle = h;
+    $("resumeBtn").hidden = true;
+    return listFiles();
+  }).catch(function(e){
+    showErr("지난번 폴더를 열지 못했습니다 — " + e.message + " 폴더 고르기로 다시 골라 주세요.");
+  });
+});
+
+$("fileSel").addEventListener("change", function(){
+  showErr("");
+  openFromList(+this.value);
+});
+
 $("xlsxPick").addEventListener("click", function(){ $("xlsxInput").click(); });
 $("xlsxInput").addEventListener("change", function(e){
   var f = e.target.files[0];
   if (!f) { return; }
+  srcHandle = null;
   readBook(f).catch(function(err){ showErr("엑셀을 읽지 못했습니다 — " + err.message); });
   e.target.value = "";
 });
@@ -729,7 +897,17 @@ function byId(id){ return slips.filter(function(s){ return s.id === id; })[0]; }
   $("folder").value = localStorage.getItem(K_FOLDER) || DEFAULT_FOLDER;
   $("apiKey").addEventListener("change", function(){ localStorage.setItem(K_KEY, $("apiKey").value.trim()); });
   $("folder").addEventListener("change", function(){ localStorage.setItem(K_FOLDER, $("folder").value.trim()); });
-  $("readyMeta").textContent = location.protocol === "file:" ? "로컬 파일로 열림 — 사진 읽기는 브라우저에서 바로 부릅니다" : "";
+  if (FS_OK) {
+    $("folderPick").hidden = false;
+    $("readyMeta").textContent = "폴더를 한 번 고르면 다음부터 기억합니다";
+    offerResume();
+  } else {
+    // 로컬 파일로 열면 폴더 기능을 쓸 수 없다. 파일 하나만 고르고 복사본은 다운로드로 받는다.
+    $("xlsxPick").hidden = false;
+    $("readyMeta").textContent = "파일로 열림 — 복사본은 다운로드 폴더에 저장됩니다";
+    $("xlsxInfo").textContent =
+      "폴더를 기억하려면 함께 들어 있는 \"서버로 열기.bat\" 으로 여세요. 그러면 원본 폴더에 바로 저장합니다.";
+  }
   renderDone();
   render();
 })();
