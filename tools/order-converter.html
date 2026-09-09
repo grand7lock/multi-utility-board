@@ -51,7 +51,8 @@
   <div class="sub">지마켓·스마트스토어·쿠팡 등 어떤 쇼핑몰의 주문 엑셀이든 열 이름을 자동 인식해서 한진/플레이오토 양식으로 변환합니다.</div>
 
   <div class="hint">
-    💡 사용 순서: ① 주문 엑셀 파일을 올리면 → ② 열 매핑을 자동 추천해 주고(틀리면 직접 고르면 됨) → ③ 변환 결과를 확인하고 엑셀로 내려받거나 송장 생성기로 넘깁니다.
+    💡 사용 순서: ① 주문 엑셀 파일을 올리면 → ② 열 매핑을 자동 추천해 주고(틀리면 직접 고르면 됨) → ③ 변환 결과를 확인하고 엑셀로 내려받거나 송장 생성기로 넘깁니다.<br>
+    · 송장은 주문당 1장만 나오도록, 주문 수량은 <b>상품명 끝에 "- 수량 N개"</b>로 붙고 수량 칸은 <b>1로 고정</b>됩니다 (한 박스에 N개 포장).
   </div>
 
   <div class="panel" id="step1">
@@ -205,11 +206,15 @@ function applyMapping(){
     var item = get("item");
     var opt = get("opt");
     if(opt && opt !== item) item = item + (item ? " / " : "") + opt;
+    // 송장은 주문당 1장만 뽑는다: 주문 수량은 상품명 끝에 "- 수량 N개"로 붙이고, 수량 칸은 1로 고정
+    var qtyN = parseInt(String(get("qty")).replace(/[^\d]/g, ""), 10);
+    if(isNaN(qtyN) || qtyN < 1) qtyN = 1;
+    if(item) item = item + " - 수량 " + qtyN + "개";
     var phone = get("phone").replace(/[^\d-]/g, "");
     if(/^1[016789]\d{7,8}$/.test(phone)) phone = "0" + phone;  // 엑셀이 앞 0을 지운 경우 복원
     var zip = get("zip").replace(/[^\d-]/g, "");
     if(/^\d{4}$/.test(zip)) zip = "0" + zip;
-    return { item:item, qty:get("qty") || "1", name:get("name"), phone:phone,
+    return { item:item, qty:"1", name:get("name"), phone:phone,
              zip:zip, addr:get("addr"), memo:get("memo"), price:get("price").replace(/[^\d.]/g,"") };
   }).filter(function(r){ return r.name || r.addr || r.item; });
 

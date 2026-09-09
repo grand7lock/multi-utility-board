@@ -164,6 +164,16 @@
   .skulist .code{margin-left:auto;font-family:Consolas,monospace;font-size:11px;color:#9ca3af}
   .editbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .editbar .grow{flex:1;min-width:120px;font-size:12px;color:#9ca3af}
+
+  /* 지금 이어진 것 */
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;
+    border-radius:999px;padding:4px 6px 4px 11px;font-size:12.5px;color:#1d4ed8}
+  .chip button{border:0;background:#dbeafe;color:#1d4ed8;border-radius:50%;width:18px;height:18px;
+    padding:0;font-size:12px;line-height:1;cursor:pointer;font-weight:700}
+  .chip button:hover{background:#bfdbfe}
+  .chips .none{font-size:12.5px;color:#b42318}
+  .pickcount{font-size:12.5px;font-weight:700;color:#1d4ed8}
 </style>
 </head>
 <body>
@@ -276,6 +286,10 @@
 
     <div class="box">
       <div class="box-h">품명 연결표 <span class="meta" id="mapMeta"></span></div>
+
+      <div id="mapErr" class="err" hidden style="margin:13px 16px 0"></div>
+
+      <div class="box-b" id="skuBar" hidden style="border-bottom:1px solid #f3f4f6;background:#fffbeb"></div>
 
       <div class="box-b" id="shareBar" style="border-bottom:1px solid #f3f4f6;background:#f8fafc"></div>
 
@@ -1161,8 +1175,10 @@ function tryPw(){
   var lines = [];        // 비교 결과
   var nameMap = {};      // 정규화 품명 -> {slipName, skus[], auto, checked}
   var onlyGap = true, fmt = "full", mapFilter = "all", mapQuery = "", editing = null, editQuery = "";
+  var editPick = [];      // 고치는 중에 고른 SKU. 검색해도 흩어지지 않게 여기 담아 둔다.
 
   function cErr(m){ var e = $("cmpErr"); e.textContent = m; e.hidden = !m; }
+  function mErr(m){ var e = $("mapErr"); e.textContent = m; e.hidden = !m; }
 
   /* ══════ 저장 ══════ */
   function loadMap(){
@@ -1302,7 +1318,7 @@ function tryPw(){
       if (nameMap[k] && nameMap[k].skus && nameMap[k].skus.length) { return; }
       var g = guess(it.name);
       if (g.skus.length) {
-        nameMap[k] = { slipName: it.name, skus: g.skus, auto: true, checked: false, score: g.score, at: Date.now() };
+        nameMap[k] = { slipName: it.name, skus: g.skus, names: namesFor(g.skus), auto: true, checked: false, score: g.score, at: Date.now() };
       }
     });
     saveMap();
@@ -1696,8 +1712,30 @@ function tryPw(){
     for (var i = 0; i < skuRows.length; i++) { if (skuRows[i].sku === code) { return skuRows[i].name; } }
     return code;
   }
-  function skuLabels(codes){
-    return codes.map(skuLabel).join(", ");
+  /** 엑셀이 열려 있으면 거기 이름을, 아니면 연결표에 적어 둔 이름을 쓴다 */
+  function skuLabels(codes, m){
+    return codes.map(function(c, i){
+      if (skuRows.length) {
+        for (var j = 0; j < skuRows.length; j++) { if (skuRows[j].sku === c) { return skuRows[j].name; } }
+      }
+      if (m && m.names && m.names[i]) { return m.names[i]; }
+      return c;
+    }).join(", ");
+  }
+  function namesFor(codes, m){
+    return codes.map(function(c, i){
+      for (var j = 0; j < skuRows.length; j++) { if (skuRows[j].sku === c) { return skuRows[j].name; } }
+      return (m && m.names && m.names[i]) || c;
+    });
+  }
+  /** 엑셀을 새로 열었을 때, 이어둔 항목의 이름을 채워 넣는다 */
+  function refreshNames(){
+    var changed = false;
+    Object.keys(nameMap).forEach(function(k){
+      var m = nameMap[k], ns = namesFor(m.skus || [], m);
+      if (JSON.stringify(ns) !== JSON.stringify(m.names || [])) { m.names = ns; changed = true; }
+    });
+    if (changed) { try { localStorage.setItem(MAP_KEY, JSON.stringify(nameMap)); } catch (e) {} }
   }
 
   /** 고치기 — 그 줄 아래에 SKU 목록을 펼쳐 고르게 한다 */
