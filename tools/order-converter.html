@@ -209,7 +209,8 @@ function applyMapping(){
     // 송장은 주문당 1장만 뽑는다: 주문 수량은 상품명 끝에 "- 수량 N개"로 붙이고, 수량 칸은 1로 고정
     var qtyN = parseInt(String(get("qty")).replace(/[^\d]/g, ""), 10);
     if(isNaN(qtyN) || qtyN < 1) qtyN = 1;
-    if(item) item = item + " - 수량 " + qtyN + "개";
+    // 이미 "수량 N개"가 붙어 있으면 다시 붙이지 않는다 (중복 방지)
+    if(item && !/수량\s*\d+\s*개\s*$/.test(item)) item = item + " - 수량 " + qtyN + "개";
     var phone = get("phone").replace(/[^\d-]/g, "");
     if(/^1[016789]\d{7,8}$/.test(phone)) phone = "0" + phone;  // 엑셀이 앞 0을 지운 경우 복원
     var zip = get("zip").replace(/[^\d-]/g, "");

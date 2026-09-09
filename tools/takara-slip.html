@@ -1176,6 +1176,7 @@ function tryPw(){
   var nameMap = {};      // 정규화 품명 -> {slipName, skus[], auto, checked}
   var onlyGap = true, fmt = "full", mapFilter = "all", mapQuery = "", editing = null, editQuery = "";
   var editPick = [];      // 고치는 중에 고른 SKU. 검색해도 흩어지지 않게 여기 담아 둔다.
+  var pendingEdit = null; // 엑셀이 없어 미뤄둔 고치기
 
   function cErr(m){ var e = $("cmpErr"); e.textContent = m; e.hidden = !m; }
   function mErr(m){ var e = $("mapErr"); e.textContent = m; e.hidden = !m; }
@@ -1740,14 +1741,31 @@ function tryPw(){
 
   /** 고치기 — 그 줄 아래에 SKU 목록을 펼쳐 고르게 한다 */
   function editLink(k){
+    if (editing === k) { editing = null; drawMap(); return; }
     if (!skuRows.length) {
-      cErr("먼저 ① 에서 재고 엑셀을 골라 주세요. SKU 목록이 있어야 이을 수 있습니다.");
-      document.querySelector('.menu button[data-tab="cmp"]').click();
+      // 고칠 SKU 목록이 없다. 탭을 옮기지 말고 이 자리에서 엑셀을 고르게 한다.
+      mErr("고치려면 재고 엑셀이 있어야 합니다. 바로 아래에서 골라 주세요.");
+      pendingEdit = k;
+      drawSkuBar();
+      $("skuBar").scrollIntoView({ block: "center", behavior: "smooth" });
       return;
     }
-    editing = (editing === k) ? null : k;
+    mErr("");
+    editing = k;
     editQuery = "";
+    editPick = ((nameMap[k] && nameMap[k].skus) || []).slice();
     drawMap();
+  }
+
+  /** 연결표에서도 재고 엑셀을 고를 수 있게 한다 */
+  function drawSkuBar(){
+    var bar = $("skuBar");
+    if (skuRows.length) { bar.hidden = true; return; }
+    bar.hidden = false;
+    bar.innerHTML = '<div class="editbar">'
+      + '<button class="pri mini" id="mapXlsxPick">재고 엑셀 고르기</button>'
+      + '<span class="grow">이어진 SKU 를 고치려면 엑셀의 SKU 목록이 필요합니다. 보기만 할 때는 없어도 됩니다.</span>'
+      + "</div>";
   }
 
   function editRowHTML(k){
@@ -1756,19 +1774,32 @@ function tryPw(){
     var list = skuRows.filter(function(r){
       return !q || r.name.toLowerCase().indexOf(q) !== -1 || String(r.sku).toLowerCase().indexOf(q) !== -1;
     });
+
+    var chips = editPick.length
+      ? editPick.map(function(c){
+          return '<span class="chip">' + esc(skuLabel(c))
+            + '<button data-unpick="' + esc(c) + '" title="이 SKU 빼기">✕</button></span>';
+        }).join("")
+      : '<span class="none">아직 아무것도 고르지 않았습니다. 아래에서 하나 이상 고르세요.</span>';
+
     return '<tr class="editrow"><td colspan="5">'
-      + '<div class="editbar"><input type="text" id="editQ" placeholder="SKU 이름으로 좁히기" '
-      + 'value="' + esc(editQuery) + '" style="max-width:240px">'
-      + '<span class="grow">' + esc(m.slipName) + " 에 이을 SKU 를 고르세요. 색상별로 여러 개를 고를 수 있습니다.</span></div>"
+      + '<div class="editbar"><b style="font-size:13px">' + esc(m.slipName) + "</b>"
+      + '<span class="grow">이 품명에 이을 SKU 입니다. 색상별로 <b>여러 개를 고를 수 있습니다.</b></span>'
+      + '<span class="pickcount">' + editPick.length + "개 고름</span></div>"
+      + '<div class="chips">' + chips + "</div>"
+      + '<div class="editbar"><input type="text" id="editQ" placeholder="SKU 이름으로 좁혀 찾기" '
+      + 'value="' + esc(editQuery) + '" style="max-width:260px">'
+      + '<span class="grow">' + list.length + "개 보이는 중 · 전체 " + skuRows.length + "개</span></div>"
       + '<div class="skulist">'
       + (list.length ? list.map(function(r){
           return '<label><input type="checkbox" data-skupick="' + esc(r.sku) + '"'
-            + (m.skus.indexOf(r.sku) !== -1 ? " checked" : "") + ">"
+            + (editPick.indexOf(r.sku) !== -1 ? " checked" : "") + ">"
             + "<span>" + esc(r.name) + '</span><span class="code">' + esc(r.sku) + "</span></label>";
         }).join("") : '<div style="padding:12px;color:#9ca3af;font-size:12.5px">찾는 SKU 가 없습니다.</div>')
       + "</div>"
       + '<div class="editbar"><button class="pri mini" data-editsave="' + esc(k) + '">이대로 잇기</button>'
-      + '<button class="mini" data-editcancel>그만두기</button></div></td></tr>';
+      + '<button class="mini" data-editcancel>그만두기</button>'
+      + '<span class="grow">고른 것만 남고 나머지는 끊어집니다.</span></div></td></tr>';
   }
 
   /* ══════ 이벤트 ══════ */
@@ -1860,8 +1891,9 @@ function tryPw(){
     var d = e.target.dataset || {};
     if (d.mapedit !== undefined) { editLink(d.mapedit); }
     else if (d.editsave !== undefined) {
-      var k2 = d.editsave, picked = [];
-      document.querySelectorAll("[data-skupick]:checked").forEach(function(x){ picked.push(x.dataset.skupick); });
+      var k2 = d.editsave, picked = editPick.slice();
+      if (!picked.length) { mErr("SKU 를 하나 이상 골라야 이을 수 있습니다."); return; }
+      mErr("");
       // 아직 이어둔 적 없는 품명이면 명세표에서 원문 이름을 가져온다
       var nm2 = nameMap[k2] && nameMap[k2].slipName;
       if (!nm2) {
@@ -1869,10 +1901,26 @@ function tryPw(){
           if (keyOf(slipItems[si].name) === k2) { nm2 = slipItems[si].name; break; }
         }
       }
-      nameMap[k2] = { slipName: nm2 || k2, skus: picked, auto: false, checked: true, at: Date.now() };
-      saveMap(); editing = null; recompute();
+      nameMap[k2] = { slipName: nm2 || k2, skus: picked, names: namesFor(picked), auto: false, checked: true, at: Date.now() };
+      saveMap(); editing = null; editPick = []; recompute();
     }
-    else if (d.editcancel !== undefined) { editing = null; drawMap(); }
+    else if (d.editcancel !== undefined) { editing = null; editPick = []; mErr(""); drawMap(); }
+    else if (d.unpick !== undefined) {
+      editPick = editPick.filter(function(c){ return c !== d.unpick; });
+      drawMap();
+    }
+    else if (e.target.id === "mapXlsxPick") {
+      mErr("");
+      if (typeof window.showOpenFilePicker === "function") {
+        window.showOpenFilePicker({
+          id: "pelto-xlsx", multiple: false,
+          types: [{ description: "엑셀 파일", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"] } }]
+        }).then(function(hs){ return hs[0].getFile(); }).then(afterXlsxForEdit)
+          .catch(function(err){ if (err && err.name !== "AbortError") { mErr("파일을 열지 못했습니다 — " + err.message); } });
+      } else {
+        $("mapXlsxInput").click();
+      }
+    }
     else if (d.sliplink !== undefined) {
       editing = d.sliplink;
       document.querySelector('.menu button[data-tab="map"]').click();
@@ -1909,6 +1957,26 @@ function tryPw(){
   });
   document.addEventListener("change", function(e){
     var d = e.target.dataset || {};
+    if (d.skupick !== undefined) {
+      var code = d.skupick;
+      if (e.target.checked) { if (editPick.indexOf(code) === -1) { editPick.push(code); } }
+      else { editPick = editPick.filter(function(c){ return c !== code; }); }
+      // 칩과 개수만 새로 그린다 (목록 스크롤을 건드리지 않으려고 통째로 다시 그리지 않는다)
+      var row = e.target.closest("tr.editrow");
+      if (row) {
+        var chipBox = row.querySelector(".chips"), cnt = row.querySelector(".pickcount");
+        if (chipBox) {
+          chipBox.innerHTML = editPick.length
+            ? editPick.map(function(c){
+                return '<span class="chip">' + esc(skuLabel(c))
+                  + '<button data-unpick="' + esc(c) + '" title="이 SKU 빼기">✕</button></span>';
+              }).join("")
+            : '<span class="none">아직 아무것도 고르지 않았습니다. 아래에서 하나 이상 고르세요.</span>';
+        }
+        if (cnt) { cnt.textContent = editPick.length + "개 고름"; }
+      }
+      return;
+    }
     if (d.mapchk !== undefined && nameMap[d.mapchk]) {
       nameMap[d.mapchk].checked = e.target.checked;
       nameMap[d.mapchk].at = Date.now();
