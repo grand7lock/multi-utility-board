@@ -1181,6 +1181,8 @@ function tryPw(){
   var onlyGap = true, fmt = "full", mapFilter = "all", mapQuery = "", editing = null, editQuery = "";
   var editPick = [];      // 고치는 중에 고른 SKU. 검색해도 흩어지지 않게 여기 담아 둔다.
   var pendingEdit = null; // 엑셀이 없어 미뤄둔 고치기
+  var skuList = [];       // 연결표에서 고를 SKU 전체 목록 (SKU 재고 파일)
+  var skuSrc = "";        // 그 파일 이름
 
   function cErr(m){ var e = $("cmpErr"); e.textContent = m; e.hidden = !m; }
   function mErr(m){ var e = $("mapErr"); e.textContent = m; e.hidden = !m; }
@@ -1240,13 +1242,40 @@ function tryPw(){
       if (remote) { nameMap = mergeMaps(nameMap, remote); rememberNames(); }
       try { localStorage.setItem(MAP_KEY, JSON.stringify(nameMap)); } catch (e) {}
       return writeShared();
-    }).then(function(){ recompute(); drawShare(); });
+    }).then(function(){ return findMasterInFolder(); })
+      .then(function(){ recompute(); drawShare(); drawSkuBar(); });
+  }
+
+  /** 공유 폴더 안에서 'SKU 재고' 파일 중 가장 최근 것을 찾아 읽는다 */
+  function findMasterInFolder(){
+    if (!mapDir) { return Promise.resolve(false); }
+    var cands = [], it = mapDir.values();
+    function step(){
+      return it.next().then(function(r){
+        if (r.done) { return null; }
+        var h = r.value;
+        if (h.kind === "file" && /\.xlsx$/i.test(h.name) && h.name.indexOf("~$") !== 0
+            && /sku\s*재고/i.test(h.name)) {
+          return h.getFile().then(function(f){
+            cands.push({ file: f, time: f.lastModified });
+            return step();
+          }, step);
+        }
+        return step();
+      });
+    }
+    return step().then(function(){
+      if (!cands.length) { return false; }
+      cands.sort(function(a, b){ return b.time - a.time; });
+      return useMasterFile(cands[0].file).then(function(){ return true; }, function(){ return false; });
+    }).catch(function(){ return false; });
   }
 
   function afterXlsxForEdit(file){
-    return useFile(file).then(function(){
-      drawSkuBar();
-      if (!skuRows.length) { mErr("이 파일에서 SKU 목록을 읽지 못했습니다."); return; }
+    return useMasterFile(file).catch(function(e){
+      mErr("SKU 목록을 읽지 못했습니다 — " + e.message);
+      throw e;
+    }).then(function(){
       mErr("");
       var k = pendingEdit;
       pendingEdit = null;
@@ -1318,7 +1347,8 @@ function tryPw(){
     var want = tokens(stripNo(slipName));
     if (!want.length) { return { skus: [], score: 0 }; }
     var best = [], bestScore = 0;
-    skuRows.forEach(function(r){
+    // SKU 재고 파일이 있으면 전체에서 찾는다. 없으면 이번 입고분에서만 찾는다.
+    pickSource().forEach(function(r){
       var have = tokens(r.name), hit = 0;
       want.forEach(function(w){
         for (var i = 0; i < have.length; i++) {
@@ -1329,7 +1359,10 @@ function tryPw(){
       if (score > bestScore) { bestScore = score; best = [r.sku]; }
       else if (score === bestScore && score > 0) { best.push(r.sku); }
     });
-    return { skus: bestScore >= 0.6 ? best : [], score: bestScore };
+    // 동점이 너무 많으면 넘겨짚지 않고 사람이 고르게 둔다.
+    // 색상 변형은 보통 몇 개뿐이라, 열두 개를 넘으면 이름이 헐겁게 걸린 것이다.
+    var ok = bestScore >= 0.6 && best.length <= 12;
+    return { skus: ok ? best : [], score: bestScore };
   }
 
   /** 명세표 품목마다 연결을 확인하고, 없으면 자동으로 이어 둔다 */
@@ -1390,7 +1423,8 @@ function tryPw(){
     }
     return out;
   }
-  function readGrid(xml){
+  function readGrid(xml, sh){
+    var S = sh || shared;
     var grid = [], rowRe = /<row\b[^>]*\sr="(\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g, rm;
     while ((rm = rowRe.exec(xml))) {
       var cells = {}, body = rm[2] || "";
@@ -1402,7 +1436,7 @@ function tryPw(){
         else {
           var vm = inner.match(/<v>([\s\S]*?)<\/v>/);
           if (!vm) { continue; }
-          if (t === "s") { v = shared[+vm[1]]; }
+          if (t === "s") { v = S[+vm[1]]; }
           else if (t === "str" || t === "e") { v = unesc(vm[1]); }
           else { var n = parseFloat(vm[1]); v = isNaN(n) ? unesc(vm[1]) : n; }
         }
@@ -1427,6 +1461,55 @@ function tryPw(){
       if (map.name && map.slip && map.got) { map.row = r; return map; }
     }
     return null;
+  }
+
+  /** SKU 재고 파일의 머리글: SKU코드 + 재고관리코드(또는 SKU관리코드) */
+  function findMasterHeader(grid){
+    for (var r = 1; r <= 12 && r < grid.length; r++) {
+      var row = grid[r];
+      if (!row) { continue; }
+      var map = {};
+      for (var c in row) {
+        var v = String(row[c]).replace(/\s/g, "");
+        if (v === "SKU코드") { map.sku = +c; }
+        else if (v === "재고관리코드" || v === "SKU관리코드") { map.name = +c; }
+      }
+      if (map.sku && map.name) { map.row = r; return map; }
+    }
+    return null;
+  }
+
+  /** 연결표에서 고를 SKU 전체 목록을 읽는다. 수량은 보지 않는다. */
+  function useMasterFile(file){
+    return file.arrayBuffer().then(function(buf){
+      var files = fflate.unzipSync(new Uint8Array(buf));
+      var sh = sharedStrings(files);
+      var sheets = sheetPaths(files), found = null;
+      for (var i = 0; i < sheets.length && !found; i++) {
+        var grid = readGrid(new TextDecoder().decode(files[sheets[i].path]), sh);
+        var h = findMasterHeader(grid);
+        if (h) { found = { grid: grid, h: h, name: sheets[i].name }; }
+      }
+      if (!found) {
+        throw new Error("SKU코드와 재고관리코드 칸이 있는 시트를 찾지 못했습니다.");
+      }
+      var out = [];
+      for (var r = found.h.row + 1; r < found.grid.length; r++) {
+        var row = found.grid[r];
+        if (!row) { continue; }
+        var code = row[found.h.sku], nm = row[found.h.name];
+        if (!code || !nm) { continue; }
+        out.push({ sku: String(code), name: String(nm) });
+      }
+      if (!out.length) { throw new Error("SKU 를 한 줄도 읽지 못했습니다."); }
+      skuList = out;
+      skuSrc = file.name;
+      rememberNames();
+      refreshNames();
+      drawSkuBar();
+      drawMap();
+      return out.length;
+    });
   }
 
   function useFile(file){
@@ -1742,6 +1825,7 @@ function tryPw(){
         if (m.names && m.names[i] && !nameByCode[c]) { nameByCode[c] = m.names[i]; }
       });
     });
+    skuList.forEach(function(r){ if (r.sku) { nameByCode[r.sku] = r.name; } });
     skuRows.forEach(function(r){ if (r.sku) { nameByCode[r.sku] = r.name; } });   // 엑셀이 우선
   }
   function inSheet(code){
@@ -1757,8 +1841,7 @@ function tryPw(){
   }
   function namesFor(codes, m){
     return codes.map(function(c, i){
-      for (var j = 0; j < skuRows.length; j++) { if (skuRows[j].sku === c) { return skuRows[j].name; } }
-      return (m && m.names && m.names[i]) || c;
+      return nameByCode[c] || (m && m.names && m.names[i]) || c;
     });
   }
   /** 엑셀을 새로 열었을 때, 이어둔 항목의 이름을 채워 넣는다 */
@@ -1772,11 +1855,23 @@ function tryPw(){
   }
 
   /** 고치기 — 그 줄 아래에 SKU 목록을 펼쳐 고르게 한다 */
+  /** 고를 SKU 목록. SKU 재고 파일이 있으면 그쪽 전체를 쓴다. */
+  function pickSource(){ return skuList.length ? skuList : skuRows; }
+
+  /** 정규화한 열쇠로 명세표에 찍힌 원문 품명을 되찾는다 */
+  function slipNameOf(k){
+    if (nameMap[k] && nameMap[k].slipName) { return nameMap[k].slipName; }
+    for (var i = 0; i < slipItems.length; i++) {
+      if (keyOf(slipItems[i].name) === k) { return slipItems[i].name; }
+    }
+    return k;
+  }
+
   function editLink(k){
     if (editing === k) { editing = null; drawMap(); return; }
-    if (!skuRows.length) {
+    if (!pickSource().length) {
       // 고칠 SKU 목록이 없다. 탭을 옮기지 말고 이 자리에서 엑셀을 고르게 한다.
-      mErr("고치려면 재고 엑셀이 있어야 합니다. 바로 아래에서 골라 주세요.");
+      mErr("고치려면 SKU 목록이 있어야 합니다. 바로 아래에서 골라 주세요.");
       pendingEdit = k;
       drawSkuBar();
       $("skuBar").scrollIntoView({ block: "center", behavior: "smooth" });
@@ -1792,20 +1887,43 @@ function tryPw(){
   /** 연결표에서도 재고 엑셀을 고를 수 있게 한다 */
   function drawSkuBar(){
     var bar = $("skuBar");
-    if (skuRows.length) { bar.hidden = true; return; }
+    if (skuList.length) {
+      bar.hidden = false;
+      bar.style.background = "#f0fdf4";
+      bar.innerHTML = '<div class="editbar">'
+        + '<span style="font-size:13px"><b>' + esc(skuSrc) + "</b> 에서 SKU "
+        + '<span class="num">' + skuList.length + "</span>개를 읽었습니다.</span>"
+        + '<span style="flex:1"></span>'
+        + '<button class="mini" id="mapXlsxPick">다른 파일로 바꾸기</button></div>';
+      return;
+    }
+    if (skuRows.length) {
+      // 입고 확인 시트만 있는 상태. 그 시트에 든 SKU 로만 고를 수 있다.
+      bar.hidden = false;
+      bar.style.background = "#fffbeb";
+      bar.innerHTML = '<div class="editbar">'
+        + '<button class="pri mini" id="mapXlsxPick">SKU 재고 파일 고르기</button>'
+        + '<span class="grow">지금은 이번 입고분 ' + skuRows.length
+        + "개 중에서만 고를 수 있습니다. SKU 재고 파일을 고르면 전체에서 고릅니다.</span></div>";
+      return;
+    }
     bar.hidden = false;
+    bar.style.background = "#fffbeb";
     bar.innerHTML = '<div class="editbar">'
-      + '<button class="pri mini" id="mapXlsxPick">재고 엑셀 고르기</button>'
-      + '<span class="grow">이어진 SKU 를 고치려면 엑셀의 SKU 목록이 필요합니다. 보기만 할 때는 없어도 됩니다.</span>'
+      + '<button class="pri mini" id="mapXlsxPick">SKU 재고 파일 고르기</button>'
+      + '<span class="grow">이어진 SKU 를 고치려면 SKU 목록이 필요합니다. 보기만 할 때는 없어도 됩니다.</span>'
       + "</div>";
   }
 
   function editRowHTML(k){
-    var m = nameMap[k] || { slipName: k, skus: [] };
+    var m = nameMap[k] || { slipName: slipNameOf(k), skus: [] };
     var q = editQuery.trim().toLowerCase();
-    var list = skuRows.filter(function(r){
+    var src = pickSource();
+    var hits = src.filter(function(r){
       return !q || r.name.toLowerCase().indexOf(q) !== -1 || String(r.sku).toLowerCase().indexOf(q) !== -1;
     });
+    var CAP = 200;                      // 한 번에 다 그리면 느리다
+    var list = hits.slice(0, CAP);
 
     var chips = editPick.length
       ? editPick.map(function(c){
@@ -1823,7 +1941,8 @@ function tryPw(){
       + '<div class="chips">' + chips + "</div>"
       + '<div class="editbar"><input type="text" id="editQ" placeholder="SKU 이름으로 좁혀 찾기" '
       + 'value="' + esc(editQuery) + '" style="max-width:260px">'
-      + '<span class="grow">' + list.length + "개 보이는 중 · 전체 " + skuRows.length + "개</span></div>"
+      + '<span class="grow">' + list.length + "개 보이는 중 · 전체 " + src.length + "개"
+      + (hits.length > CAP ? " · 너무 많아 앞 " + CAP + "개만 그렸습니다. 이름으로 좁혀 주세요." : "") + "</span></div>"
       + '<div class="skulist">'
       + (list.length ? list.map(function(r){
           return '<label><input type="checkbox" data-skupick="' + esc(r.sku) + '"'
@@ -1902,7 +2021,7 @@ function tryPw(){
 
   $("mapXlsxInput").addEventListener("change", function(e){
     var f = e.target.files[0];
-    if (f) { afterXlsxForEdit(f); }
+    if (f) { afterXlsxForEdit(f).catch(function(){}); }
     e.target.value = "";
   });
 
@@ -1935,13 +2054,8 @@ function tryPw(){
       if (!picked.length) { mErr("SKU 를 하나 이상 골라야 이을 수 있습니다."); return; }
       mErr("");
       // 아직 이어둔 적 없는 품명이면 명세표에서 원문 이름을 가져온다
-      var nm2 = nameMap[k2] && nameMap[k2].slipName;
-      if (!nm2) {
-        for (var si = 0; si < slipItems.length; si++) {
-          if (keyOf(slipItems[si].name) === k2) { nm2 = slipItems[si].name; break; }
-        }
-      }
-      nameMap[k2] = { slipName: nm2 || k2, skus: picked, names: namesFor(picked), auto: false, checked: true, at: Date.now() };
+      var nm2 = slipNameOf(k2);
+      nameMap[k2] = { slipName: nm2, skus: picked, names: namesFor(picked), auto: false, checked: true, at: Date.now() };
       saveMap(); editing = null; editPick = []; recompute();
     }
     else if (d.editcancel !== undefined) { editing = null; editPick = []; mErr(""); drawMap(); }
@@ -1956,7 +2070,10 @@ function tryPw(){
           id: "pelto-xlsx", multiple: false,
           types: [{ description: "엑셀 파일", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"] } }]
         }).then(function(hs){ return hs[0].getFile(); }).then(afterXlsxForEdit)
-          .catch(function(err){ if (err && err.name !== "AbortError") { mErr("파일을 열지 못했습니다 — " + err.message); } });
+          .catch(function(err){
+            if (err && err.name === "AbortError") { return; }
+            if (err && String(err.message).indexOf("SKU") === -1) { mErr("파일을 열지 못했습니다 — " + err.message); }
+          });
       } else {
         $("mapXlsxInput").click();
       }
