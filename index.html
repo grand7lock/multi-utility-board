@@ -27,6 +27,14 @@
     white-space: nowrap; color: #374151;
   }
   .toolbar button:hover { background: #f3f4f6; }
+  .toolbar input#q {
+    padding: 6px 11px; border: 1px solid #d1d5db; border-radius: 7px;
+    font-size: 12.5px; font-family: inherit; color: #374151; min-width: 210px;
+  }
+  .toolbar input#q:focus {
+    outline: none; border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(147, 197, 253, .35);
+  }
+  .nohit { font-size: 13px; color: #9ca3af; padding: 26px 2px; }
   .saved { color: #059669; font-weight: 700; opacity: 0; transition: opacity .2s; }
   .saved.show { opacity: 1; }
 
@@ -71,8 +79,26 @@
     display: flex; align-items: center; justify-content: center;
     background: linear-gradient(135deg, #8fb3e8, #6b96d9);
   }
+  /* 섹션마다 아이콘 색을 달리해서 지금 어느 구역인지 바로 알게 한다 */
+  .sec[data-kind="local"] .icon { background: linear-gradient(135deg, #b6a0e6, #8b6fd0); }
+  .sec[data-kind="web"]   .icon { background: linear-gradient(135deg, #8fb3e8, #6b96d9); }
+  .sec[data-kind="tab"]   .icon { background: linear-gradient(135deg, #7fcaa8, #4aa984); }
   .name { font-size: 14px; font-weight: 700; color: #111827; line-height: 1.35; }
-  .desc { font-size: 12px; color: #6b7280; line-height: 1.5; }
+  /* 설명은 3줄까지만. 카드 높이가 들쭉날쭉하지 않게 한다 */
+  .desc {
+    font-size: 12px; color: #6b7280; line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  /* 잘린 설명은 마우스를 올리면 카드 아래에 통째로 뜬다 (다른 카드는 밀리지 않는다) */
+  .full {
+    display: none; position: absolute; left: -1px; right: -1px; top: 100%;
+    margin-top: 6px; z-index: 30; text-align: left;
+    background: #fff; border: 1px solid #bfdbfe; border-radius: 10px;
+    box-shadow: 0 9px 24px rgba(15, 23, 42, .17);
+    padding: 11px 13px; font-size: 12px; color: #4b5563; line-height: 1.65;
+  }
+  .card:hover { z-index: 20; }
+  .card:hover .full, .card:focus-within .full { display: block; }
 
   /* ── 카드 옮기기 ── */
   .card.dragging { opacity: .35; }
@@ -92,6 +118,9 @@
   /* 손가락으로 쓰는 화면에서는 화살표를 늘 보이게 (끌어놓기가 안 되므로) */
   @media (hover: none) {
     .move { opacity: 1; }
+    /* 마우스 올리기가 없어서 팝업이 뜰 수 없으므로 설명을 더 보여준다 */
+    .desc { -webkit-line-clamp: 6; }
+    .full { display: none !important; }
   }
 
   footer { margin-top: 36px; font-size: 12px; color: #9ca3af; line-height: 1.7; }
@@ -107,6 +136,7 @@
   <div class="toolbar">
     <span>카드는 <b>같은 섹션 안에서만</b> 옮겨집니다. 섹션 자체는 제목 오른쪽 <b>▲ ▼</b> 로 통째로 올리고 내립니다. 바뀐 순서는 이 브라우저에 저장됩니다.</span>
     <span style="flex:1"></span>
+    <input type="search" id="q" placeholder="이름·설명으로 찾기" autocomplete="off">
     <span class="saved" id="saved">저장됨</span>
     <button id="resetBtn">기본 순서로</button>
   </div>
@@ -284,7 +314,7 @@ function moveSection(kind, dir) {
   render();
 }
 
-function makeCard(t, kind, i, last) {
+function makeCard(t, kind, i, last, movable) {
   var external = isExternal(t.url);
   var card = document.createElement("a");
   card.className = "card";
@@ -302,13 +332,18 @@ function makeCard(t, kind, i, last) {
     });
   }
 
-  card.draggable = true;
+  card.draggable = !!movable;
   card.dataset.kind = kind;
   card.dataset.index = i;
   card.innerHTML =
     '<div class="icon">' + esc(t.icon) + "</div>" +
     '<div class="name">' + esc(t.name) + "</div>" +
-    '<div class="desc">' + esc(t.desc) + "</div>";
+    '<div class="desc">' + esc(t.desc) + "</div>" +
+    // 3줄에 안 들어갈 만큼 길 때만 전체보기를 붙인다
+    (t.desc.length > 62 ? '<div class="full">' + esc(t.desc) + "</div>" : "");
+
+  // 찾는 중에는 순서를 못 바꾼다 (걸러진 자리에서 옮기면 엉뚱한 곳으로 간다)
+  if (!movable) { return card; }
 
   // 화살표로 옮기기 (손가락으로 쓰는 화면에서는 이쪽이 유일한 방법)
   var mv = document.createElement("div");
@@ -329,8 +364,15 @@ function makeCard(t, kind, i, last) {
   return card;
 }
 
+var query = "";
+function matches(t) {
+  if (!query) { return true; }
+  return (t.name + " " + t.desc).toLowerCase().indexOf(query) !== -1;
+}
+
 function render() {
   board.innerHTML = "";
+  var hits = 0;
 
   layout.sections.forEach(function (kind, si) {
     var meta = sectionByKey(kind);
@@ -344,7 +386,7 @@ function render() {
     h.className = "sec-h";
     h.innerHTML =
       '<span class="t">' + (si + 1) + " · " + esc(meta.title) + "</span>" +
-      '<span class="n">' + urls.length + "개</span>" +
+      '<span class="n">' + urls.filter(function (u) { var x = toolByUrl(u); return x && matches(x); }).length + "개</span>" +
       '<span class="d">' + esc(meta.desc) + "</span>" +
       '<span class="sp"></span>';
 
@@ -361,24 +403,37 @@ function render() {
     h.appendChild(sm);
     sec.appendChild(h);
 
+    var shown = 0;
     if (urls.length === 0) {
       var none = document.createElement("div");
       none.className = "secempty";
       none.textContent = "아직 없습니다.";
       sec.appendChild(none);
+      shown = 1;
     } else {
       var grid = document.createElement("div");
       grid.className = "grid";
       urls.forEach(function (url, i) {
         var t = toolByUrl(url);
-        if (!t) return;
-        grid.appendChild(makeCard(t, kind, i, urls.length - 1));
+        if (!t || !matches(t)) return;
+        grid.appendChild(makeCard(t, kind, i, urls.length - 1, !query));
+        shown++;
+        hits++;
       });
       sec.appendChild(grid);
     }
 
+    // 찾는 중이고 이 섹션에 걸린 게 없으면 섹션째 감춘다
+    if (query && shown === 0) { return; }
     board.appendChild(sec);
   });
+
+  if (query && hits === 0) {
+    var nh = document.createElement("div");
+    nh.className = "nohit";
+    nh.textContent = "'" + query + "' 에 걸리는 도구가 없습니다.";
+    board.appendChild(nh);
+  }
 
   if (pendingFocus) {
     var el = board.querySelector(pendingFocus);
@@ -436,6 +491,11 @@ document.getElementById("resetBtn").addEventListener("click", function () {
   if (!confirm("섹션 순서와 카드 순서를 기본값으로 되돌릴까요?")) return;
   layout = defaultLayout();
   saveLayout();
+  render();
+});
+
+document.getElementById("q").addEventListener("input", function () {
+  query = this.value.trim().toLowerCase();
   render();
 });
 
