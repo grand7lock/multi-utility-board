@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>로켓그로스 입고문서 출력</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+    margin: 0; background: #f4f6f9; color: #1f2937;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 16px; }
+  .panel {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 14px;
+  }
+  .panel h2 { font-size: 14px; margin: 0 0 10px; color: #374151; }
+  .hint {
+    font-size: 12.5px; color: #6b7280; background: #f0f7ff; border: 1px solid #dbeafe;
+    border-radius: 8px; padding: 10px 12px; line-height: 1.7; margin-bottom: 14px;
+  }
+  .hint b { color: #1d4ed8; }
+  .drop {
+    border: 2px dashed #93c5fd; border-radius: 12px; background: #f8fbff;
+    padding: 28px 16px; text-align: center; color: #1e40af; cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .drop.over { background: #dbeafe; border-color: #2563eb; }
+  .drop .big { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .drop .small { font-size: 12.5px; color: #6b7280; }
+  .files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .file {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px;
+    border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px 10px; background: #fff;
+  }
+  .file .kind { font-weight: 700; padding: 2px 7px; border-radius: 6px; font-size: 11.5px; }
+  .file .kind.att { background: #fef3c7; color: #92400e; }
+  .file .kind.enc { background: #dcfce7; color: #166534; }
+  .file .kind.unk { background: #fee2e2; color: #991b1b; }
+  .file .x { border: none; background: none; color: #9ca3af; cursor: pointer; font-size: 14px; padding: 0 2px; }
+  .file .x:hover { color: #ef4444; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
+  button {
+    padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 7px;
+    background: #fff; font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #f3f4f6; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: #1d4ed8; }
+  button.green { background: #059669; border-color: #059669; color: #fff; font-weight: 600; }
+  button.green:hover:not(:disabled) { background: #047857; }
+  button.big { padding: 10px 18px; font-size: 14px; }
+  .spacer { flex: 1; }
+  .status { font-size: 12.5px; color: #6b7280; }
+  .status.ok { color: #166534; font-weight: 600; }
+  .status.err { color: #b91c1c; font-weight: 600; }
+  .folder {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px;
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px;
+  }
+  .folder .path { font-weight: 700; color: #92400e; }
+  .folder .none { color: #9ca3af; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+  .tablebox { overflow-x: auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  th {
+    background: #f9fafb; font-size: 12px; color: #4b5563; font-weight: 600;
+    border-bottom: 2px solid #e5e7eb; border-right: 1px solid #eef0f3;
+    padding: 8px 6px; text-align: center; white-space: nowrap;
+  }
+  td { border-bottom: 1px solid #f0f1f4; border-right: 1px solid #f5f6f8; padding: 0; }
+  td.rownum { text-align: center; font-size: 12px; color: #9ca3af; width: 36px; background: #fafbfc; }
+  td input {
+    width: 100%; border: none; padding: 7px 8px; font-size: 13px;
+    font-family: inherit; background: transparent; outline: none;
+  }
+  td input:focus { background: #eff6ff; }
+  td input.num { text-align: center; width: 64px; }
+  td.code input { font-family: Consolas, "Malgun Gothic", monospace; width: 150px; }
+  tfoot td { padding: 7px 8px; font-size: 12.5px; color: #374151; background: #f9fafb; }
+  .delbtn { border: none; background: none; color: #d1d5db; cursor: pointer; font-size: 14px; padding: 4px 8px; }
+  .delbtn:hover { color: #ef4444; }
+  .pages { font-size: 12.5px; color: #374151; line-height: 1.8; }
+  .pages .keep { color: #166534; }
+  .pages .skip { color: #9ca3af; text-decoration: line-through; }
+  iframe.preview { width: 100%; height: 640px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+  label.chk { font-size: 12.5px; color: #374151; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  footer { margin-top: 18px; font-size: 11.5px; color: #9ca3af; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="../index.html" style="display:inline-flex;align-items:center;gap:8px;font-size:17px;font-weight:700;color:#1d4ed8;text-decoration:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 18px;margin-bottom:10px">🏠 메인화면으로 가기</a>
+  <h1>🚀 로켓그로스 입고문서 출력</h1>
+  <div class="sub">쿠팡 로켓그로스에서 받은 <b>물류부착문서</b>와 <b>물류동봉문서</b> PDF 를 올리면, 출력할 페이지만 한 장의 PDF 로 합치고 동봉문서의 상품 목록을 <b>바코드 라벨용 엑셀</b>(상품코드 · 상품명 · 수량)로 만듭니다.</div>
+
+  <div class="hint">
+    💡 <b>사용법:</b> PDF 두 개를 아래 칸에 한꺼번에 끌어다 놓으세요. 어느 쪽이 부착문서이고 동봉문서인지는 내용을 보고 자동으로 구분합니다.<br>
+    · 합친 PDF 는 <b>부착문서 전체</b> + <b>동봉문서에서 거래명세서 앞 페이지까지</b>만 담습니다. 거래명세서는 빠집니다.<br>
+    · 엑셀은 <b>sheet1</b> 시트에 <b>상품코드 · 상품명 · 수량</b> 세 열로 저장됩니다. 아래 표에서 고친 내용이 그대로 들어갑니다.<br>
+    · <b>저장 폴더</b>를 한 번 정해 두면 기억해 두었다가, 다음부터는 파일을 올리자마자 그 폴더에 PDF 와 엑셀을 바로 씁니다.<br>
+    · 모든 처리는 이 브라우저 안에서만 이루어지며 파일이 서버로 올라가지 않습니다.
+  </div>
+
+  <div class="folder" id="folderBox">
+    <span>📁 저장 폴더:</span>
+    <span id="folderName" class="none">아직 정하지 않음 (브라우저 기본 다운로드 폴더로 내려받습니다)</span>
+    <span class="spacer"></span>
+    <button id="btnFolder">폴더 고르기</button>
+    <button id="btnFolderClear" style="display:none">폴더 해제</button>
+  </div>
+
+  <div class="panel">
+    <div class="drop" id="drop">
+      <div class="big">📄 PDF 파일을 여기에 끌어다 놓거나 클릭해서 고르세요</div>
+      <div class="small">물류부착문서_… .pdf 와 물류동봉문서_… .pdf 두 개를 함께 넣으면 됩니다</div>
+      <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple style="display:none">
+    </div>
+    <div class="files" id="files"></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="primary big" id="btnBoth" disabled>📥 PDF + 엑셀 바로 저장</button>
+    <button id="btnPdf" disabled>📄 PDF만</button>
+    <button id="btnXlsx" disabled>📊 엑셀만</button>
+    <button id="btnPrint" disabled>🖨️ 인쇄</button>
+    <button id="btnReset">처음부터</button>
+    <span class="spacer"></span>
+    <span class="status" id="status">파일을 기다리는 중</span>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="panel">
+        <h2>합칠 페이지</h2>
+        <div class="pages" id="pages">아직 없음</div>
+      </div>
+      <div class="panel">
+        <h2>상품 목록 (동봉문서에서 읽음)</h2>
+        <div class="toolbar" style="margin-bottom:8px">
+          <label class="chk"><input type="checkbox" id="chkMerge" checked> 같은 상품코드는 수량을 합쳐 한 줄로</label>
+          <span class="spacer"></span>
+          <button id="btnAddRow" style="padding:5px 10px;font-size:12px">+ 줄 추가</button>
+        </div>
+        <div class="tablebox">
+          <table>
+            <thead><tr><th>#</th><th>상품코드</th><th>상품명</th><th>수량</th><th></th></tr></thead>
+            <tbody id="tbody"><tr><td colspan="5" style="padding:14px;text-align:center;color:#9ca3af;font-size:12.5px">동봉문서를 올리면 여기에 표시됩니다</td></tr></tbody>
+            <tfoot><tr><td colspan="5" id="tfoot"></td></tr></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="panel" style="padding:10px">
+        <h2 style="padding:4px 6px 0">합친 PDF 미리보기</h2>
+        <iframe class="preview" id="preview" title="미리보기"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    거래명세서 페이지는 첫 줄에 "거래 명세서" 가 있는 페이지부터로 판단합니다. 상품명이 두 줄로 나뉜 경우 이어 붙이며, 표에서 직접 고칠 수 있습니다.
+    저장 폴더 기억 기능은 크롬 · 엣지에서 동작하며, 다른 브라우저에서는 기본 다운로드 폴더로 내려받습니다.
+  </footer>
+</div>
+
+<script src="../lib/pdf.min.js"></script>
+<script src="../lib/pdf-lib.min.js"></script>
+<script src="../lib/xlsx.full.min.js"></script>
+<script>
+"use strict";
+pdfjsLib.GlobalWorkerOptions.workerSrc = "../lib/pdf.worker.min.js";
+
+/* ── 상태 ──────────────────────────────────────────────── */
+var files = [];        // { name, buf(ArrayBuffer), kind:'att'|'enc'|'unk', pages:[{no, keep, title}], items:[...], dateTag }
+var rawItems = [];     // 동봉문서에서 읽은 원본 행 { code, num, name, qty, box }
+var rows = [];         // 표에 보이는 행 { code, name, qty }
+var mergedBytes = null;
+var previewUrl = null;
+var dirHandle = null;  // 저장 폴더 (File System Access API)
+
+var $ = function (id) { return document.getElementById(id); };
+function setStatus(msg, cls) { var s = $("status"); s.textContent = msg; s.className = "status" + (cls ? " " + cls : ""); }
+
+/* ── 저장 폴더 기억 (IndexedDB) ───────────────────────── */
+var DB_NAME = "rocket_inbound_docs", STORE = "kv";
+function openDb() {
+  return new Promise(function (res, rej) {
+    var r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = function () { r.result.createObjectStore(STORE); };
+    r.onsuccess = function () { res(r.result); };
+    r.onerror = function () { rej(r.error); };
+  });
+}
+function kvGet(key) {
+  return openDb().then(function (db) {
+    return new Promise(function (res, rej) {
+      var t = db.transaction(STORE, "readonly").objectStore(STORE).get(key);
+      t.onsuccess = function () { res(t.result); }; t.onerror = function () { rej(t.error); };
+    });
+  });
+}
+function kvSet(key, val) {
+  return openDb().then(function (db) {
+    return new Promise(function (res, rej) {
+      var t = db.transaction(STORE, "readwrite");
+      t.objectStore(STORE).put(val, key);
+      t.oncomplete = function () { res(); }; t.onerror = function () { rej(t.error); };
+    });
+  });
+}
+function kvDel(key) {
+  return openDb().then(function (db) {
+    return new Promise(function (res, rej) {
+      var t = db.transaction(STORE, "readwrite");
+      t.objectStore(STORE).delete(key);
+      t.oncomplete = function () { res(); }; t.onerror = function () { rej(t.error); };
+    });
+  });
+}
+var hasFsApi = typeof window.showDirectoryPicker === "function";
+
+function renderFolder() {
+  var n = $("folderName");
+  if (dirHandle) { n.textContent = dirHandle.name; n.className = "path"; $("btnFolderClear").style.display = ""; $("btnFolder").textContent = "폴더 바꾸기"; }
+  else { n.textContent = hasFsApi ? "아직 정하지 않음 (브라우저 기본 다운로드 폴더로 내려받습니다)" : "이 브라우저는 폴더 지정을 지원하지 않아 기본 다운로드 폴더로 내려받습니다"; n.className = "none"; $("btnFolderClear").style.display = "none"; $("btnFolder").textContent = "폴더 고르기"; }
+  $("btnFolder").disabled = !hasFsApi;
+}
+$("btnFolder").addEventListener("click", function () {
+  if (!hasFsApi) return;
+  window.showDirectoryPicker({ mode: "readwrite", id: "rocket-inbound-docs" }).then(function (h) {
+    dirHandle = h;
+    return kvSet("dir", h);
+  }).then(function () { renderFolder(); setStatus("저장 폴더를 기억했습니다: " + dirHandle.name, "ok"); })
+    .catch(function (e) { if (e && e.name !== "AbortError") setStatus("폴더를 고르지 못했습니다: " + e.message, "err"); });
+});
+$("btnFolderClear").addEventListener("click", function () {
+  dirHandle = null; kvDel("dir").then(renderFolder);
+});
+// 이전에 정한 폴더 불러오기
+if (hasFsApi) {
+  kvGet("dir").then(function (h) { if (h) { dirHandle = h; } renderFolder(); }).catch(renderFolder);
+} else renderFolder();
+
+// 폴더에 쓸 수 있는지 확인. 필요하면 허용 창을 띄운다(클릭 같은 사용자 동작 안에서만 가능).
+function ensurePermission(ask) {
+  if (!dirHandle) return Promise.resolve(false);
+  return dirHandle.queryPermission({ mode: "readwrite" }).then(function (p) {
+    if (p === "granted") return true;
+    if (!ask) return false;
+    return dirHandle.requestPermission({ mode: "readwrite" }).then(function (q) { return q === "granted"; });
+  }).catch(function () { return false; });
+}
+
+/* ── 파일 받기 ────────────────────────────────────────── */
+var drop = $("drop");
+drop.addEventListener("click", function () { $("fileInput").click(); });
+$("fileInput").addEventListener("change", function (e) { addFiles(e.target.files); e.target.value = ""; });
+["dragenter", "dragover"].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("over"); });
+});
+["dragleave", "drop"].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("over"); });
+});
+drop.addEventListener("drop", function (e) { addFiles(e.dataTransfer.files); });
+document.addEventListener("dragover", function (e) { e.preventDefault(); });
+document.addEventListener("drop", function (e) { e.preventDefault(); if (e.target !== drop && !drop.contains(e.target)) addFiles(e.dataTransfer.files); });
+
+function addFiles(list) {
+  var arr = Array.prototype.slice.call(list || []).filter(function (f) { return /\.pdf$/i.test(f.name) || f.type === "application/pdf"; });
+  if (!arr.length) { setStatus("PDF 파일이 아닙니다", "err"); return; }
+  setStatus("읽는 중…");
+  var p = Promise.resolve();
+  arr.forEach(function (f) {
+    p = p.then(function () { return f.arrayBuffer(); }).then(function (buf) { return analyze(f.name, buf); });
+  });
+  p.then(function () { return rebuild(true); }).catch(function (e) { console.error(e); setStatus("읽지 못했습니다: " + (e && e.message || e), "err"); });
+}
+
+// 테스트용: 이름과 ArrayBuffer 를 직접 넣는다
+window.__addBuffer = function (name, buf) { return analyze(name, buf).then(function () { return rebuild(false); }); };
+
+/* ── PDF 분석: 종류 판단, 페이지 선택, 상품 추출 ───────── */
+function analyze(name, buf) {
+  var entry = { name: name, buf: buf, kind: "unk", pages: [], items: [], dateTag: (name.match(/(\d{8})_\d{6}/) || [])[1] || "" };
+  return pdfjsLib.getDocument({ data: buf.slice(0) }).promise.then(function (doc) {
+    var chain = Promise.resolve();
+    var stop = false;
+    for (var i = 1; i <= doc.numPages; i++) {
+      (function (no) {
+        chain = chain.then(function () { return doc.getPage(no); }).then(function (page) {
+          return page.getTextContent().then(function (tc) {
+            var words = toWords(tc, page.view);
+            var text = words.map(function (w) { return w.str; }).join(" ");
+            var isSlip = /거래\s*명세서/.test(text.slice(0, 80)) || /거래\s*명세서\s+(쿠팡|업체)\s*제출용/.test(text);
+            if (no === 1) {
+              if (/부착문서/.test(text)) entry.kind = "att";
+              else if (/동봉문서/.test(text)) entry.kind = "enc";
+              else if (isSlip) entry.kind = "enc";
+            }
+            if (isSlip) stop = true;
+            var keep = entry.kind === "att" ? true : !stop;
+            var title = isSlip ? "거래명세서" : (/부착문서/.test(text) ? "부착문서" : (/동봉문서/.test(text) ? "동봉문서" : "기타"));
+            var boxTag = (text.match(/박스\s*(\d+-\d+)/) || [])[1] || "";
+            entry.pages.push({ no: no, keep: keep, title: title + (boxTag ? " (박스 " + boxTag + ")" : "") });
+            if (keep && entry.kind === "enc" && /동봉문서/.test(text)) {
+              extractItems(words, boxTag || String(no)).forEach(function (it) { entry.items.push(it); });
+            }
+          });
+        });
+      })(i);
+    }
+    return chain.then(function () { files.push(entry); });
+  });
+}
+
+// pdf.js 글자 조각을 { str, x, y(위쪽 기준), w } 로 바꾼다
+function toWords(tc, view) {
+  var H = view[3] - view[1];
+  var out = [];
+  tc.items.forEach(function (it) {
+    var s = (it.str || "").trim();
+    if (!s) return;
+    var x = it.transform[4], y = H - it.transform[5];
+    out.push({ str: s, x: x, y: y, w: it.width || 0 });
+  });
+  out.sort(function (a, b) { return (Math.abs(a.y - b.y) < 2) ? a.x - b.x : a.y - b.y; });
+  return out;
+}
+
+// 동봉문서 표: 상품 바코드 | 상품번호 | 상품명/옵션명 | 수량 | 소비기한
+function extractItems(words, box) {
+  // 머리글 위치로 열 경계를 잡는다. 못 찾으면 기본값(A4 기준).
+  var hdr = {};
+  words.forEach(function (w) {
+    if (/^상품번호$/.test(w.str)) hdr.num = w;
+    if (/옵션명/.test(w.str)) hdr.name = w;
+    if (/^수량$/.test(w.str) && w.x > 350) hdr.qty = hdr.qty || w;
+    if (/소비기한/.test(w.str)) hdr.exp = w;
+  });
+  var headerY = hdr.name ? hdr.name.y : (hdr.num ? hdr.num.y : 0);
+  var numX = hdr.num ? hdr.num.x : 147;
+  var nameX = hdr.name ? hdr.name.x - 75 : 200;   // 상품명은 가운데 정렬이라 머리글보다 왼쪽에서 시작한다
+  var qtyX = hdr.qty ? hdr.qty.x - 12 : 410;
+  var expX = hdr.exp ? hdr.exp.x - 8 : 490;
+
+  var anchors = words.filter(function (w) {
+    return w.y > headerY + 4 && w.x < numX - 10 && /^[A-Z0-9][A-Z0-9-]{6,}$/.test(w.str);
+  });
+  var items = [];
+  anchors.forEach(function (a, i) {
+    var y0 = i > 0 ? (anchors[i - 1].y + a.y) / 2 : headerY + 4;
+    var y1 = i < anchors.length - 1 ? (a.y + anchors[i + 1].y) / 2 : a.y + 22;
+    var inRow = function (w) { return w.y > y0 && w.y < y1; };
+    var num = words.filter(function (w) { return inRow(w) && w.x >= numX - 10 && w.x < nameX - 5; }).map(function (w) { return w.str; }).join("");
+    var qtyW = words.filter(function (w) { return inRow(w) && w.x >= qtyX && w.x < expX && /^\d+$/.test(w.str); });
+    var nameWords = words.filter(function (w) { return inRow(w) && w.x >= nameX - 5 && w.x < qtyX; });
+    // 줄 단위로 묶은 뒤 이어 붙인다
+    var lines = [];
+    nameWords.forEach(function (w) {
+      var L = lines.length ? lines[lines.length - 1] : null;
+      if (L && Math.abs(L.y - w.y) < 3) L.parts.push(w.str);
+      else lines.push({ y: w.y, parts: [w.str] });
+    });
+    var name = "";
+    lines.forEach(function (L) {
+      var t = L.parts.join(" ").replace(/\s+/g, " ").trim();
+      if (!name) { name = t; return; }
+      var a1 = name.slice(-1), b1 = t.charAt(0);
+      // 한글 낱말이 줄 끝에서 잘린 경우("그레" + "이")는 띄우지 않고 붙인다
+      var glue = (/[가-힣]/.test(a1) && /[가-힣]/.test(b1)) ? "" : " ";
+      name = name + glue + t;
+    });
+    name = name.replace(/\s*\/\s*/g, " / ").replace(/\s+/g, " ").trim();
+    var qty = qtyW.length ? parseInt(qtyW[0].str, 10) : 0;
+    items.push({ code: a.str, num: num, name: name, qty: qty, box: box });
+  });
+  return items;
+}
+
+/* ── 화면 갱신 + 합치기 ────────────────────────────────── */
+function rebuild(autoSave) {
+  renderFiles();
+  renderPages();
+  rawItems = [];
+  files.forEach(function (f) { f.items.forEach(function (it) { rawItems.push(it); }); });
+  rowsFromRaw();
+  renderRows();
+  return mergePdf().then(function () {
+    var att = files.filter(function (f) { return f.kind === "att"; }).length;
+    var enc = files.filter(function (f) { return f.kind === "enc"; }).length;
+    var msg = "부착문서 " + att + "개 · 동봉문서 " + enc + "개 · 상품 " + rows.length + "줄";
+    if (!att) msg += " · 부착문서가 아직 없습니다";
+    if (!enc) msg += " · 동봉문서가 아직 없습니다";
+    $("btnBoth").disabled = !(mergedBytes || rows.length);
+    setStatus(msg, (!att || !enc) ? "err" : "");
+    // 두 문서가 다 들어왔고 저장 폴더가 이미 허용돼 있으면 바로 쓴다
+    if (autoSave && att && enc && dirHandle) {
+      return ensurePermission(false).then(function (ok) {
+        if (ok) return saveBoth(false);
+        setStatus(msg + " · 폴더 쓰기 허용이 필요합니다. [PDF + 엑셀 바로 저장] 을 누르세요", "err");
+      });
+    }
+  });
+}
+
+function renderFiles() {
+  var box = $("files"); box.innerHTML = "";
+  files.forEach(function (f, i) {
+    var d = document.createElement("div"); d.className = "file";
+    var k = f.kind === "att" ? "부착문서" : f.kind === "enc" ? "동봉문서" : "알 수 없음";
+    d.innerHTML = '<span class="kind ' + f.kind + '">' + k + '</span><span></span><button class="x" title="빼기">✕</button>';
+    d.children[1].textContent = f.name + " (" + f.pages.length + "쪽)";
+    d.children[2].addEventListener("click", function () { files.splice(i, 1); rebuild(false); });
+    box.appendChild(d);
+  });
+}
+
+function renderPages() {
+  var el = $("pages");
+  if (!files.length) { el.textContent = "아직 없음"; return; }
+  var html = "";
+  orderedFiles().forEach(function (f) {
+    html += "<div><b>" + esc(f.name) + "</b></div>";
+    f.pages.forEach(function (p) {
+      html += '<div class="' + (p.keep ? "keep" : "skip") + '">' + (p.keep ? "✔ " : "✖ ") + p.no + "쪽 · " + esc(p.title) + (p.keep ? "" : " (출력 안 함)") + "</div>";
+    });
+  });
+  el.innerHTML = html;
+}
+
+// 부착문서 먼저, 그다음 동봉문서
+function orderedFiles() {
+  return files.filter(function (f) { return f.kind === "att"; })
+    .concat(files.filter(function (f) { return f.kind === "enc"; }))
+    .concat(files.filter(function (f) { return f.kind === "unk"; }));
+}
+
+function rowsFromRaw() {
+  if ($("chkMerge").checked) {
+    var map = {}, list = [];
+    rawItems.forEach(function (it) {
+      if (!map[it.code]) { map[it.code] = { code: it.code, name: it.name, qty: 0 }; list.push(map[it.code]); }
+      map[it.code].qty += it.qty;
+    });
+    rows = list;
+  } else {
+    rows = rawItems.map(function (it) { return { code: it.code, name: it.name, qty: it.qty }; });
+  }
+}
+
+function renderRows() {
+  var tb = $("tbody"); tb.innerHTML = "";
+  if (!rows.length) {
+    tb.innerHTML = '<tr><td colspan="5" style="padding:14px;text-align:center;color:#9ca3af;font-size:12.5px">동봉문서를 올리면 여기에 표시됩니다</td></tr>';
+    $("tfoot").textContent = "";
+  }
+  rows.forEach(function (r, i) {
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td class="rownum">' + (i + 1) + '</td><td class="code"><input></td><td><input></td><td><input class="num" type="number" min="0"></td><td><button class="delbtn" title="줄 삭제">✕</button></td>';
+    var ins = tr.querySelectorAll("input");
+    ins[0].value = r.code; ins[1].value = r.name; ins[2].value = r.qty;
+    ins[0].addEventListener("input", function () { r.code = this.value.trim(); });
+    ins[1].addEventListener("input", function () { r.name = this.value; });
+    ins[2].addEventListener("input", function () { r.qty = parseInt(this.value, 10) || 0; updateFoot(); });
+    tr.querySelector(".delbtn").addEventListener("click", function () { rows.splice(i, 1); renderRows(); });
+    tb.appendChild(tr);
+  });
+  updateFoot();
+  $("btnXlsx").disabled = !rows.length;
+}
+function updateFoot() {
+  if (!rows.length) return;
+  var total = rows.reduce(function (s, r) { return s + (r.qty || 0); }, 0);
+  $("tfoot").textContent = rows.length + "줄 · 총 수량 " + total;
+}
+$("chkMerge").addEventListener("change", function () { rowsFromRaw(); renderRows(); });
+$("btnAddRow").addEventListener("click", function () { rows.push({ code: "", name: "", qty: 0 }); renderRows(); });
+
+function mergePdf() {
+  mergedBytes = null;
+  if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = null; }
+  $("preview").removeAttribute("src");
+  $("btnPdf").disabled = true; $("btnPrint").disabled = true; $("btnBoth").disabled = true;
+  var list = orderedFiles().filter(function (f) { return f.pages.some(function (p) { return p.keep; }); });
+  if (!list.length) return Promise.resolve();
+  var out;
+  return PDFLib.PDFDocument.create().then(function (d) {
+    out = d;
+    var chain = Promise.resolve();
+    list.forEach(function (f) {
+      chain = chain.then(function () { return PDFLib.PDFDocument.load(f.buf.slice(0)); }).then(function (src) {
+        var idx = f.pages.filter(function (p) { return p.keep; }).map(function (p) { return p.no - 1; });
+        return out.copyPages(src, idx).then(function (pages) { pages.forEach(function (p) { out.addPage(p); }); });
+      });
+    });
+    return chain;
+  }).then(function () {
+    out.setTitle("로켓그로스 입고문서");
+    return out.save();
+  }).then(function (bytes) {
+    mergedBytes = bytes;
+    previewUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    $("preview").src = previewUrl + "#toolbar=1";
+    $("btnPdf").disabled = false; $("btnPrint").disabled = false;
+  });
+}
+
+/* ── 저장 ──────────────────────────────────────────────── */
+function dateTag() {
+  var f = files.filter(function (x) { return x.dateTag; })[0];
+  if (f) return f.dateTag;
+  var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+  return "" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate());
+}
+function pdfName() { return "로켓그로스 입고문서_" + dateTag() + ".pdf"; }
+function xlsxName() { return "로켓그로스 바코드_" + dateTag() + ".xlsx"; }
+function pdfBlob() { return new Blob([mergedBytes], { type: "application/pdf" }); }
+function xlsxBlob() {
+  var data = [["상품코드", "상품명", "수량"]];
+  rows.forEach(function (r) { data.push([r.code, r.name, r.qty]); });
+  var ws = XLSX.utils.aoa_to_sheet(data);
+  ws["!cols"] = [{ wch: 18 }, { wch: 61.6 }, { wch: 6.75 }];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "sheet1");
+  var wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  return new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+window.__xlsxBlob = xlsxBlob;
+
+function browserDownload(blob, name) {
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+// 폴더가 정해져 있고 허용돼 있으면 폴더에, 아니면 브라우저 다운로드로
+function saveFile(blob, name, ask) {
+  if (!dirHandle) { browserDownload(blob, name); return Promise.resolve("download"); }
+  return ensurePermission(ask).then(function (ok) {
+    if (!ok) { browserDownload(blob, name); return "download"; }
+    return dirHandle.getFileHandle(name, { create: true }).then(function (fh) { return fh.createWritable(); })
+      .then(function (w) { return w.write(blob).then(function () { return w.close(); }); })
+      .then(function () { return "folder"; });
+  });
+}
+function saveBoth(ask) {
+  var todo = [];
+  if (mergedBytes) todo.push([pdfBlob(), pdfName()]);
+  if (rows.length) todo.push([xlsxBlob(), xlsxName()]);
+  if (!todo.length) return Promise.resolve();
+  var where = null;
+  var chain = Promise.resolve();
+  todo.forEach(function (t) { chain = chain.then(function () { return saveFile(t[0], t[1], ask); }).then(function (w) { where = w; }); });
+  return chain.then(function () {
+    var names = todo.map(function (t) { return t[1]; }).join(", ");
+    setStatus((where === "folder" ? "폴더 [" + dirHandle.name + "] 에 저장했습니다: " : "내려받았습니다: ") + names, "ok");
+  }).catch(function (e) { setStatus("저장하지 못했습니다: " + (e && e.message || e), "err"); });
+}
+$("btnBoth").addEventListener("click", function () { saveBoth(true); });
+$("btnPdf").addEventListener("click", function () {
+  if (!mergedBytes) return;
+  saveFile(pdfBlob(), pdfName(), true).then(function (w) {
+    setStatus((w === "folder" ? "폴더 [" + dirHandle.name + "] 에 저장했습니다: " : "내려받았습니다: ") + pdfName(), "ok");
+  }).catch(function (e) { setStatus("저장하지 못했습니다: " + (e && e.message || e), "err"); });
+});
+$("btnXlsx").addEventListener("click", function () {
+  if (!rows.length) return;
+  saveFile(xlsxBlob(), xlsxName(), true).then(function (w) {
+    setStatus((w === "folder" ? "폴더 [" + dirHandle.name + "] 에 저장했습니다: " : "내려받았습니다: ") + xlsxName(), "ok");
+  }).catch(function (e) { setStatus("저장하지 못했습니다: " + (e && e.message || e), "err"); });
+});
+$("btnPrint").addEventListener("click", function () {
+  if (!previewUrl) return;
+  var w = window.open(previewUrl, "_blank");
+  if (!w) setStatus("팝업이 막혔습니다. 미리보기 안의 인쇄 버튼을 쓰세요", "err");
+});
+$("btnReset").addEventListener("click", function () { files = []; rebuild(false).then(function () { setStatus("파일을 기다리는 중"); }); });
+
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+</script>
+</body>
+</html>

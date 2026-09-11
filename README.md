@@ -11,6 +11,7 @@
 | 05 | 중국어 캡처 번역기 | `tools/image-translate.html` + `api/translate.js`, `api/phrase.js`, `api/_shared.js` | 중국어 화면 캡처 붙여넣기 → 한국어 번역. 문장집(한→중), 당월 사용량·비용 표시 |
 | 06 | 주간 소싱 보드 | (바깥 링크) https://sourcing-board.vercel.app/ | 쿠팡 급상승 · 1688 신규상품 · SNS 핫템. 별도 배포된 사이트라 링크만 걸어둔 것 |
 | 07 | 쿠팡 상품 이미지 생성기 | (바깥 링크) https://product-image-ktw.vercel.app/ | 엑셀·1688 사진 → 상세페이지 · 대표이미지 6장 · 상품정보 엑셀. 1688 일괄 가져오기로 상품정보·판매가 자동 기재. 별도 배포된 사이트라 링크만 걸어둔 것 |
+| 08 | 로켓그로스 입고문서 출력 | `tools/rocket-inbound-docs.html` + `lib/pdf.min.js`, `lib/pdf-lib.min.js` | 물류부착문서 + 물류동봉문서 PDF → 거래명세서를 뺀 출력용 PDF 한 장 + 바코드 라벨용 엑셀(sheet1: 상품코드·상품명·수량). 저장 폴더를 한 번 정하면 기억 |
 
 > 03(한진택배 대량 배송조회), 04(쇼핑몰 주문엑셀 변환기)는 `index.html`에는 등록돼 있으나 위 표에 빠져 있다.
 
