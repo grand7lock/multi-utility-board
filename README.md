@@ -12,6 +12,7 @@
 | 06 | 주간 소싱 보드 | (바깥 링크) https://sourcing-board.vercel.app/ | 쿠팡 급상승 · 1688 신규상품 · SNS 핫템. 별도 배포된 사이트라 링크만 걸어둔 것 |
 | 07 | 쿠팡 상품 이미지 생성기 | (바깥 링크) https://product-image-ktw.vercel.app/ | 엑셀·1688 사진 → 상세페이지 · 대표이미지 6장 · 상품정보 엑셀. 1688 일괄 가져오기로 상품정보·판매가 자동 기재. 별도 배포된 사이트라 링크만 걸어둔 것 |
 | 08 | 로켓그로스 입고문서 출력 | `tools/rocket-inbound-docs.html` + `lib/pdf.min.js`, `lib/pdf-lib.min.js` | 물류부착문서 + 물류동봉문서 PDF → 거래명세서를 뺀 출력용 PDF 한 장 + 바코드 라벨용 엑셀(sheet1: 상품코드·상품명·수량). 저장 폴더를 한 번 정하면 기억 |
+| 09 | 상품 원부 리스트 | `tools/product-master.html` + `lib/xlsx.full.min.js` | 매출 파일 'R raw' 시트 + BENW 공급가 파일 + 로켓 상품 등록 process 파일을 끌어다 놓으면 SKU별로 합쳐 보여줌. 공급가·원가·판매가 불일치와 위너 미선정 표시, 보이는 목록 엑셀 저장. 파일 내용은 브라우저 IndexedDB 에만 기억(서버·배포본에 데이터 없음) |
 
 > 03(한진택배 대량 배송조회), 04(쇼핑몰 주문엑셀 변환기)는 `index.html`에는 등록돼 있으나 위 표에 빠져 있다.
 

@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>상품 원부 리스트</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+    margin: 0; background: #f4f6f9; color: #1f2937; font-size: 13px;
+  }
+  .wrap { max-width: 1640px; margin: 0 auto; padding: 20px 16px 60px; }
+  .home { display: inline-flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; color: #1d4ed8;
+          text-decoration: none; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 10px 18px; margin-bottom: 10px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 14px; line-height: 1.6; }
+  .sub b { color: #374151; }
+  a { color: #2563eb; }
+  button { font-family: inherit; }
+
+  /* ── 파일 칸 ── */
+  .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  .slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .slot { border: 1px solid #e5e7eb; border-radius: 9px; padding: 10px 12px; background: #fafafa; line-height: 1.55; }
+  .slot.on { background: #f0fdf4; border-color: #86efac; }
+  .slot .t { font-weight: 700; color: #111827; font-size: 13.5px; }
+  .slot .t .req { font-size: 11px; color: #b91c1c; font-weight: 700; margin-left: 4px; }
+  .slot .d { font-size: 12px; color: #6b7280; }
+  .slot .f { font-size: 12.5px; color: #065f46; margin-top: 4px; word-break: break-all; }
+  .slot .m { font-size: 11.5px; color: #6b7280; }
+  .slot .g { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+  .drop { margin-top: 10px; border: 2px dashed #93c5fd; border-radius: 12px; background: #f8fbff; padding: 16px; text-align: center;
+          color: #1e40af; cursor: pointer; transition: background .15s, border-color .15s; font-size: 13px; line-height: 1.6; }
+  .drop b { display: block; font-size: 15px; }
+  .drop:hover, .drop.over { background: #eff6ff; border-color: #2563eb; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .actions button, .bar button {
+    padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 7px; background: #fff; font-size: 12.5px; cursor: pointer; color: #374151; }
+  .actions button:hover, .bar button:hover { background: #f3f4f6; }
+  .actions button.pri { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .actions button.pri:hover { background: #1d4ed8; }
+  .status { font-size: 12.5px; color: #374151; white-space: pre-line; }
+  .status.err { color: #b91c1c; }
+  .status.ok { color: #047857; }
+  .status.busy { color: #1d4ed8; }
+  .links { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.7; }
+  .links b { color: #111827; }
+  .empty { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 40px 20px; text-align: center; color: #6b7280; font-size: 14px; line-height: 1.8; }
+
+  /* ── 요약 타일 ── */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .tile { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 9px 12px; cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+  .tile:hover { border-color: #93c5fd; }
+  .tile.on { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.14); }
+  .tile.off { opacity: .45; cursor: default; }
+  .tile .k { font-size: 11.5px; color: #6b7280; }
+  .tile .v { font-size: 21px; font-weight: 700; color: #111827; line-height: 1.25; margin-top: 1px; }
+  .tile .s { font-size: 11px; color: #9ca3af; line-height: 1.35; margin-top: 2px; }
+  .tile.warn .v { color: #b45309; }
+  .tile.bad .v { color: #dc2626; }
+
+  /* ── 필터 ── */
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;
+         background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 9px 12px; }
+  .bar input[type=search], .bar select { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 12.5px; font-family: inherit; color: #374151; background: #fff; }
+  .bar input[type=search] { min-width: 300px; flex: 0 1 380px; }
+  .bar input:focus, .bar select:focus { outline: none; border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(147,197,253,.35); }
+  .bar .sp { flex: 1; }
+  .count { font-size: 12px; color: #6b7280; margin: 0 2px 6px; }
+  .count b { color: #111827; }
+
+  /* ── 표 ── */
+  .tablewrap { overflow: auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; max-height: calc(100vh - 150px); }
+  table.main { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1720px; font-size: 12.5px; }
+  table.main thead th { position: sticky; top: 0; z-index: 2; background: #f3f4f6; color: #374151; font-weight: 700; text-align: left;
+    padding: 8px 8px; border-bottom: 1px solid #d1d5db; white-space: nowrap; cursor: pointer; user-select: none; }
+  table.main thead th:hover { background: #e5e7eb; }
+  table.main thead th.num { text-align: right; }
+  table.main thead th .arr { font-size: 10px; color: #2563eb; margin-left: 3px; }
+  table.main tbody td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; white-space: nowrap; background: #fff; }
+  table.main tbody tr { cursor: pointer; }
+  table.main tbody tr:hover td { background: #eff6ff; }
+  table.main tbody tr.sel td { background: #dbeafe; }
+  /* 이미지 · SKU코드 는 옆으로 밀어도 남아 있게 */
+  .stk0 { position: sticky; left: 0; z-index: 1; width: 52px; min-width: 52px; }
+  .stk1 { position: sticky; left: 52px; z-index: 1; min-width: 176px; box-shadow: 1px 0 0 #e5e7eb; }
+  table.main thead th.stk0, table.main thead th.stk1 { z-index: 3; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.mono { font-family: Consolas, "Malgun Gothic", monospace; font-size: 12px; color: #374151; }
+  td.nm { white-space: normal; min-width: 250px; max-width: 340px; line-height: 1.35; }
+  .fam { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+  td.th img { width: 38px; height: 38px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; background: #f9fafb; display: block; }
+  .noimg { width: 38px; height: 38px; border-radius: 6px; background: #f3f4f6; }
+  .subv { font-size: 11px; color: #b45309; font-weight: 700; margin-top: 1px; }
+  .copy { cursor: copy; }
+  .copy:hover { color: #2563eb; text-decoration: underline dotted; }
+  .pill { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; display: inline-block; }
+  .p-ok { color: #047857; background: #d1fae5; }
+  .p-no { color: #b91c1c; background: #fee2e2; }
+  .p-none { color: #6b7280; background: #f3f4f6; }
+  .p-warn { color: #b45309; background: #fef3c7; }
+  .p-blue { color: #1d4ed8; background: #dbeafe; }
+  .p-purple { color: #6b21a8; background: #f3e8ff; }
+  .flags .pill { margin-right: 3px; }
+  .biz { font-weight: 700; color: #374151; }
+  .dim { color: #c0c4cc; }
+
+  /* ── 상세 서랍 ── */
+  .scrim { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.25); z-index: 40; }
+  .scrim.open { display: block; }
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(620px, 96vw); background: #fff; z-index: 50;
+            box-shadow: -10px 0 30px rgba(15,23,42,.18); transform: translateX(105%); transition: transform .18s; overflow: auto; }
+  .drawer.open { transform: none; }
+  .dhead { display: flex; gap: 12px; padding: 16px 20px 12px; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; background: #fff; z-index: 2; }
+  .dhead img { width: 88px; height: 88px; object-fit: cover; border-radius: 10px; border: 1px solid #e5e7eb; background: #f9fafb; }
+  .dhead .t { font-size: 15px; font-weight: 700; color: #111827; line-height: 1.35; }
+  .dhead .c { font-family: Consolas, monospace; font-size: 12px; color: #6b7280; margin-top: 3px; }
+  .dhead .x { margin-left: auto; align-self: flex-start; border: 0; background: none; font-size: 22px; color: #9ca3af; cursor: pointer; }
+  .dsec { padding: 12px 20px; border-bottom: 1px solid #f1f5f9; }
+  .dsec h3 { font-size: 12px; color: #6b7280; margin: 0 0 8px; font-weight: 700; }
+  .dsec h3 .src { font-weight: 400; color: #9ca3af; }
+  .kv { display: grid; grid-template-columns: 118px 1fr; gap: 4px 10px; font-size: 12.5px; }
+  .kv .k { color: #6b7280; }
+  .kv .v { color: #111827; font-variant-numeric: tabular-nums; word-break: break-all; }
+  .kv .v.copy { font-family: Consolas, "Malgun Gothic", monospace; }
+  .mini { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .mini th { background: #f3f4f6; padding: 5px 7px; text-align: left; font-weight: 700; color: #4b5563; white-space: nowrap; }
+  .mini td { padding: 5px 7px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+  .mini td.num, .mini th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .mini tr.me td { background: #dbeafe; font-weight: 700; }
+  .mini td.diff { background: #fffbeb; color: #b45309; font-weight: 700; }
+  .mini td.base { font-weight: 700; }
+  .note { font-size: 12px; color: #6b7280; line-height: 1.6; }
+  .warnbox { font-size: 12px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 7px 10px; margin-top: 8px; line-height: 1.6; }
+
+  .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: #111827; color: #fff;
+           font-size: 12.5px; padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .15s; z-index: 70; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .dragcover { display: none; position: fixed; inset: 0; z-index: 80; background: rgba(37,99,235,.10); border: 4px dashed #2563eb;
+               align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: #1d4ed8; pointer-events: none; }
+  .dragcover.on { display: flex; }
+  footer { margin-top: 16px; font-size: 12px; color: #9ca3af; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="home" href="../index.html">🏠 메인화면으로 가기</a>
+  <h1>📒 상품 원부 리스트</h1>
+  <div class="sub">
+    매출 파일의 <b>'R raw' 시트</b>를 기준 목록으로 삼고, <b>BENW 공급가 파일</b>과 <b>로켓 상품 등록 process 파일</b>의 내용을 SKU 하나에 모아 봅니다.
+    파일끼리 값이 다른 곳(공급가 · 원가 · 판매가)과 아이템위너 미선정을 짚어줍니다.
+  </div>
+
+  <section class="panel">
+    <div class="slots" id="slots"></div>
+    <div class="drop" id="drop">
+      <b>엑셀 파일을 여기로 끌어다 놓으세요</b>
+      세 개를 한꺼번에 놓아도 됩니다. 어느 파일인지는 시트 이름을 보고 알아서 구분합니다. · 클릭하면 파일을 고를 수 있습니다.
+    </div>
+    <div class="actions">
+      <button class="pri" id="reloadBtn" hidden>🔄 같은 파일 다시 읽기</button>
+      <button id="forgetBtn" hidden>기억 지우기</button>
+      <span class="status" id="status"></span>
+    </div>
+    <div class="links" id="links"></div>
+  </section>
+
+  <div class="empty" id="empty">
+    <b>① 매출 파일</b>이 기준 목록이라 먼저 필요합니다.<br>
+    ◈ PBZ 매출 파일을 위 칸에 끌어다 놓으면 'R raw' 시트만 골라 읽습니다.
+  </div>
+
+  <div id="main" hidden>
+    <section class="tiles" id="tiles"></section>
+    <section class="bar">
+      <input type="search" id="q" placeholder="SKU코드 · SKU명 · 옵션ID · SKU ID · 바코드로 찾기 (띄어 쓰면 모두 포함)" autocomplete="off">
+      <select id="fBiz"><option value="">사업자 전체</option></select>
+      <select id="fOrigin"><option value="">국산/해외 전체</option><option value="KR">국산 (KR)</option><option value="CN">해외 (CN)</option><option value="기타">기타 코드</option></select>
+      <select id="fBrand"><option value="">브랜드 전체</option></select>
+      <select id="fStatus"><option value="">상태 전체</option><option value="정상">정상</option><option value="불가">불가</option><option value="none">미입력</option></select>
+      <select id="fCheck"><option value="">확인할 것 전체</option></select>
+      <select id="fLink"><option value="">공급가표 연결 전체</option><option value="exact">정확히 연결</option><option value="tie">추정 연결</option><option value="fam">상품군만 연결</option><option value="none">연결 없음</option></select>
+      <span class="sp"></span>
+      <button id="resetBtn">필터 초기화</button>
+      <button id="exportBtn">📥 보이는 목록 엑셀로</button>
+    </section>
+    <div class="count" id="count"></div>
+    <div class="tablewrap">
+      <table class="main">
+        <thead><tr>
+          <th class="stk0" data-k="">이미지</th>
+          <th class="stk1" data-k="code">SKU코드</th>
+          <th data-k="name">SKU명</th>
+          <th data-k="biz">사업자</th>
+          <th data-k="status">상태</th>
+          <th data-k="optId">옵션ID</th>
+          <th data-k="skuId">SKU ID</th>
+          <th data-k="bc">바코드</th>
+          <th data-k="cost" class="num" title="R raw 제품 원가. PLTO 원가가 다르면 아래에 작게 표시">원가</th>
+          <th data-k="csup" class="num" title="R raw 쿠팡 공급가. 공급가 파일의 로켓 공급가가 다르면 아래에 작게 표시">쿠팡 공급가</th>
+          <th data-k="margin" class="num">마진</th>
+          <th data-k="rate" class="num">마진율</th>
+          <th data-k="csell" class="num" title="R raw 쿠팡 판매가. ad raw 판매금액이 다르면 아래에 작게 표시">판매가</th>
+          <th data-k="winner">위너</th>
+          <th data-k="reviews" class="num">리뷰</th>
+          <th data-k="stock" class="num" title="R raw 의 플토 재고">플토 재고</th>
+          <th data-k="cstock" class="num" title="ad raw 의 재고량 (쿠팡 창고)">쿠팡 재고</th>
+          <th data-k="flags">확인할 것</th>
+        </tr></thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    파일 내용은 이 브라우저 안에서만 읽고 서버로 보내지 않습니다. 마지막으로 읽은 내용은 이 PC 의 브라우저에만 기억되어 다음에 열면 바로 보입니다 (기억 지우기로 삭제).<br>
+    옵션ID · SKU ID · 바코드는 클릭하면 복사됩니다. 행을 클릭하면 오른쪽에 상세가 열립니다. 표 제목을 클릭하면 정렬됩니다.
+  </footer>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="toast" id="toast"></div>
+<div class="dragcover" id="dragcover">여기에 놓으면 읽습니다</div>
+<input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls" multiple hidden>
+
+<script src="../lib/xlsx.full.min.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const norm = h => String(h ?? "").replace(/\s+/g, "");
+const p2 = n => String(n).padStart(2, "0");
+const isEmpty = v => v == null || v === "";
+
+/* ── 값 다듬기 ───────────────────────────────── */
+// 날짜 칸은 시간대에 따라 하루 밀릴 수 있어 반나절을 더한 뒤 UTC 로 날짜만 뽑는다
+function ymd(d) { const x = new Date(d.getTime() + 12 * 3600e3); return `${x.getUTCFullYear()}-${p2(x.getUTCMonth() + 1)}-${p2(x.getUTCDate())}`; }
+function str(v) {
+  if (v == null) return "";
+  if (v instanceof Date) return ymd(v);
+  if (typeof v === "number") return Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
+  return String(v).trim();
+}
+function num(v) {
+  if (isEmpty(v)) return null;
+  if (typeof v === "number") return isFinite(v) ? v : null;
+  const t = String(v).replace(/[,\s원₩]/g, "");
+  return t === "" || isNaN(+t) ? null : +t;
+}
+function memoFmt(v) {
+  if (v == null || v === "") return "";
+  if (v instanceof Date) return ymd(v);
+  if (typeof v === "number") return Math.round(v).toLocaleString("ko-KR");
+  return String(v).trim();
+}
+const fmtN = n => n == null || n === "" ? "–" : Math.round(Number(n)).toLocaleString("ko-KR");
+const fmt = n => n == null || n === "" ? '<span class="dim">–</span>' : Math.round(Number(n)).toLocaleString("ko-KR");
+const pct = n => n == null ? '<span class="dim">–</span>' : (n * 100).toFixed(1) + "%";
+const imgSrc = s => { const m = String(s || "").match(/src="([^"]+)"/); return m ? m[1] : String(s || ""); };
+const isUrl = u => /^https?:\/\//i.test(u || "");
+const link = (u, t) => isUrl(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(t || "열기")}</a>` : "";
+function fmtDT(ms) { if (!ms) return ""; const d = new Date(ms); return `${String(d.getFullYear()).slice(2)}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`; }
+
+/* ── 시트 읽기 도우미: 제목 줄을 이름으로 찾아서 열 순서가 바뀌어도 버틴다 ── */
+function sheetRows(wb, name) {
+  const ws = name && wb.Sheets[name];
+  if (!ws) return null;
+  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: false });
+}
+function findSheet(wb, prefix) { return wb.SheetNames.find(n => n === prefix) || wb.SheetNames.find(n => n.startsWith(prefix)); }
+function findHdr(rows, need) {
+  const want = need.map(norm);
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    const n = (rows[i] || []).map(norm);
+    if (want.every(k => n.includes(k))) return i;
+  }
+  return -1;
+}
+function table(rows, need, spec) {
+  if (!rows) return null;
+  const h = findHdr(rows, need);
+  if (h < 0) return null;
+  const n = rows[h].map(norm);
+  const find = names => {
+    for (const nm of names) { const i = n.indexOf(norm(nm)); if (i >= 0) return i; }
+    for (const nm of names) { const k = norm(nm); const i = n.findIndex(x => x && x.startsWith(k)); if (i >= 0) return i; }
+    return -1;
+  };
+  const idx = {};
+  for (const [k, v] of Object.entries(spec)) idx[k] = find([].concat(v));
+  return { idx, body: rows.slice(h + 1) };
+}
+const at = (r, i) => (i < 0 || !r) ? null : r[i];
+
+/* ── 파일 종류 ───────────────────────────────── */
+const KINDS = ["sales", "supply", "process"];
+const KIND_INFO = {
+  sales:   { t: "① 매출 파일", req: true, d: "'R raw' 시트 · 기준 목록", gives: "옵션ID · SKU ID · 바코드 · 원가 · 쿠팡 공급가 · 상태" },
+  supply:  { t: "② BENW 공급가 파일", d: "'공급가' · '로켓SKU ID' · '명세서 품명' 시트", gives: "규격 · 색상 · 채널별 가격 · 대표이미지 · 치수" },
+  process: { t: "③ 로켓 상품 등록 process", d: "SUMMARY · hub sku · ad raw · PLTO 재고 · 중국발주 · raw total 시트", gives: "쿠팡 판매가 · 위너 · 리뷰 · PLTO 원가·재고 · 1688 정보 · 호스팅 이미지" }
+};
+// 한 번에 읽을 시트. 이름이 바뀐 경우를 위해 아래 WANT 는 앞부분으로도 찾는다
+const ALL_SHEETS = ["R raw", "공급가", "로켓SKU ID", "명세서 품명", "SUMMARY", "hub sku (복붙)", "ad raw (복붙)", "PLTO 재고 (복붙)", "중국발주(+오프로) 등록", "raw total 등록"];
+const WANT = {
+  sales: ["R raw"],
+  supply: ["공급가", "로켓SKU ID", "명세서 품명"],
+  process: ["SUMMARY", "hub sku", "ad raw", "PLTO 재고", "중국발주", "raw total"]
+};
+function detect(names) {
+  if (names.includes("R raw")) return "sales";
+  if (names.includes("공급가")) return "supply";
+  if (names.includes("SUMMARY") || names.some(n => n.startsWith("hub sku")) || names.some(n => n.startsWith("ad raw"))) return "process";
+  return null;
+}
+
+/* ── ① 매출 파일: R raw ── */
+function exSales(wb) {
+  const t = table(sheetRows(wb, findSheet(wb, "R raw")), ["옵션ID", "SKU코드", "SKU명"], {
+    opt: "옵션ID", sku: "SKU ID", bc: "바코드", code: "SKU코드", biz: "사업자", name: "SKU명", st: "상태", stock: "플토 재고",
+    cost: "제품 원가", csup: "쿠팡 공급가", margin: "마진", csell: "쿠팡 판매가", url: "1688 URL", chg: "변동일자" });
+  if (!t) throw new Error("'R raw' 시트에서 제목 줄(옵션ID · SKU코드 · SKU명)을 찾지 못했습니다.");
+  const I = t.idx, SKIP = new Set(["원가", "변경 원가", "공급가", "변경 공급가"]);
+  const rraw = t.body.filter(r => str(at(r, I.code))).map(r => ({
+    optId: str(at(r, I.opt)), skuId: str(at(r, I.sku)), bc: str(at(r, I.bc)), code: str(at(r, I.code)),
+    biz: str(at(r, I.biz)), name: str(at(r, I.name)), status: str(at(r, I.st)), stock: num(at(r, I.stock)),
+    cost: num(at(r, I.cost)), csup: num(at(r, I.csup)), margin: num(at(r, I.margin)), csell: num(at(r, I.csell)),
+    url: str(at(r, I.url)),
+    memo: I.chg < 0 ? "" : r.slice(I.chg, I.chg + 9).map(memoFmt).filter(x => x && !SKIP.has(x)).join(" · ")
+  }));
+  return { data: { rraw }, info: `R raw ${rraw.length}행` };
+}
+
+/* ── ② 공급가 파일 ── */
+function exHub(rows) {
+  const t = table(rows, ["SKU ID", "발주가능상태"], {
+    sku: "SKU ID", name: "상품명", bc: "바코드", st: "발주가능상태", bm: "담당 BM", buyer: "발주담당자",
+    L: "길이 (mm)", W: "넓이 (mm)", H: "높이 (mm)", moq: "최소구매수량 (MOQ)", wt: "중량 (g)",
+    inner: "Inner Case 내 SKU 수량", box: "Box 내 총수량" });
+  if (!t) return [];
+  const I = t.idx;
+  return t.body.filter(r => str(at(r, I.sku))).map(r => ({
+    skuId: str(at(r, I.sku)), name: str(at(r, I.name)), bc: str(at(r, I.bc)), status: str(at(r, I.st)),
+    bm: str(at(r, I.bm)), buyer: str(at(r, I.buyer)), L: str(at(r, I.L)), W: str(at(r, I.W)), H: str(at(r, I.H)),
+    moq: str(at(r, I.moq)), wt: str(at(r, I.wt)), inner: str(at(r, I.inner)), box: str(at(r, I.box)) }));
+}
+function exSupply(wb) {
+  const t = table(sheetRows(wb, findSheet(wb, "공급가")), ["브랜드", "NO", "규격", "색상"], {
+    brand: "브랜드", no: "NO", kind: "종류", bc: "바코드", size: "규격", color: "색상", dim: "사이즈(cm)",
+    img: "대표이미지 Url", sup: "공급가", sell: "판매가", rsup: "로켓 공급가", rsell: "로켓 판매가", rg: "RG 판매가", om: "OM 판매가" });
+  if (!t) throw new Error("'공급가' 시트에서 제목 줄(브랜드 · NO · 규격 · 색상)을 찾지 못했습니다.");
+  const I = t.idx;
+  // 브랜드 → NO → 종류 가 위쪽 칸에만 적혀 있는 모양이라, 아래로 이어 받는다
+  const cur = { brand: "", no: "", kind: "", code: "", date: "", img: "" };
+  const variants = [];
+  for (const r of t.body) {
+    const b = str(at(r, I.brand)); if (b) cur.brand = b;
+    const no = str(at(r, I.no));
+    if (no) { cur.no = /^\d+$/.test(no) ? no.padStart(3, "0") : no; cur.kind = ""; cur.code = ""; cur.date = ""; cur.img = ""; }
+    const k = at(r, I.kind);
+    if (k instanceof Date) cur.date = ymd(k);
+    else if (typeof k === "string" && k.trim()) {
+      const x = k.trim();
+      if (/^[A-Z]{1,4}$/.test(x)) cur.code = x;
+      else if (!/^\d/.test(x)) cur.kind = cur.kind ? cur.kind + " " + x : x;
+    }
+    const img = str(at(r, I.img)); if (img && !cur.img) cur.img = img;
+    if (isEmpty(at(r, I.sup)) && isEmpty(at(r, I.rsup))) continue;
+    const bcv = str(at(r, I.bc));
+    variants.push({
+      brand: cur.brand, no: cur.no, kind: cur.kind, code: cur.code, date: cur.date,
+      bc: /^\d+$/.test(bcv) ? bcv.slice(-4) : "", size: str(at(r, I.size)), color: str(at(r, I.color)), dim: str(at(r, I.dim)),
+      img: img || cur.img, sup: num(at(r, I.sup)), sell: num(at(r, I.sell)), rsup: num(at(r, I.rsup)), rsell: num(at(r, I.rsell)),
+      rg: num(at(r, I.rg)), om: num(at(r, I.om)) });
+  }
+  const hub = exHub(sheetRows(wb, findSheet(wb, "로켓SKU ID")));
+  const st = table(sheetRows(wb, findSheet(wb, "명세서 품명")), ["바코드", "변경할 품명"], { bc: "바코드", name: "변경할 품명" });
+  const spec = st ? st.body.filter(r => str(at(r, st.idx.bc))).map(r => ({ bc4: str(at(r, st.idx.bc)).slice(-4), name: str(at(r, st.idx.name)) })) : [];
+  return { data: { variants, hub, spec }, info: `공급가 ${variants.length}행 · 치수 ${hub.length} · 명세서 품명 ${spec.length}` };
+}
+
+/* ── ③ 로켓 상품 등록 process ── */
+function exProcess(wb) {
+  const sm = table(sheetRows(wb, findSheet(wb, "SUMMARY")), ["PLTO SKU코드"], {
+    reg: "등록일", code: "PLTO SKU코드", skuId: "HUB SKU ID", optId: "AD 옵션ID", bc: "바코드", biz: "사업자",
+    hubName: "HUB SKU명", cost: "SKU 원가", rsup: "로켓 공급가", rsell: "로켓 판매가",
+    u1688: "1688 URL", o1688: "1688 옵션명", c1688: "1688 원가", e1688: "1688 예상원가", real: "수입 후 실 원가",
+    vendor: "매입처", origin: "원산지", tax: "과세여부", brand: "브랜드", maker: "제조사", cat: "상품분류코드",
+    hImg: "호스팅 대표URL", hDetail: "호스팅 상세URL", hLabel: "호스팅 라벨URL", mat: "재질", color: "색상", size: "크기", country: "제조국" });
+  const summary = !sm ? [] : sm.body.filter(r => str(at(r, sm.idx.code))).map(r => {
+    const o = {}; for (const k of Object.keys(sm.idx)) o[k] = str(at(r, sm.idx[k]));
+    ["cost", "rsup", "rsell", "c1688", "e1688", "real"].forEach(k => o[k] = num(at(r, sm.idx[k])));
+    o.hDetail = imgSrc(o.hDetail);
+    return o;
+  });
+  const hub = exHub(sheetRows(wb, findSheet(wb, "hub sku")));
+
+  const ad = table(sheetRows(wb, findSheet(wb, "ad raw")), ["옵션 ID", "판매금액"], {
+    opt: "옵션 ID", name: "상품명", price: "판매금액", stock: "재고량", rev: "리뷰수", win: "아이템위너 여부", link: "링크" });
+  const adRows = !ad ? [] : ad.body.filter(r => str(at(r, ad.idx.opt))).map(r => ({
+    optId: str(at(r, ad.idx.opt)), name: str(at(r, ad.idx.name)), price: num(at(r, ad.idx.price)), stock: num(at(r, ad.idx.stock)),
+    reviews: num(at(r, ad.idx.rev)), winner: str(at(r, ad.idx.win)), link: str(at(r, ad.idx.link)) }));
+
+  const pl = table(sheetRows(wb, findSheet(wb, "PLTO 재고")), ["SKU코드", "실재고"], {
+    code: "SKU코드", mgmt: "재고관리코드", name: "SKU상품명", origin: "원산지", tax: "과세여부", stock: "실재고", avail: "판매가능재고",
+    attr: "속성", brand: "브랜드", maker: "제조사", cost: "원가", buy: "매입원가", vendor: "매입처", img: "대표이미지", cat: "상품분류코드" });
+  const plto = !pl ? [] : pl.body.filter(r => str(at(r, pl.idx.code))).map(r => {
+    const o = {}; for (const k of Object.keys(pl.idx)) o[k] = str(at(r, pl.idx[k]));
+    ["stock", "avail", "cost", "buy"].forEach(k => o[k] = num(at(r, pl.idx[k])));
+    o.attr = o.attr.replace(/\s*\n\s*/g, " ");
+    return o;
+  });
+
+  const cn = table(sheetRows(wb, findSheet(wb, "중국발주")), ["SKU코드", "카톤 입수량"], {
+    code: "SKU코드", img: "이미지 URL", url: "상품 URL", name: "상품명", carton: "카톤 입수량", setN: "SKU 구성 수", unit: "단가",
+    ship: "배송비", est: "예상 개당 원가", req: "요청 사항", hs: "HS CODE", en: "상품명 (영문)", ocolor: "옵션 색상", osize: "옵션 사이즈", note: "로켓 비고" });
+  const cnRows = !cn ? [] : cn.body.filter(r => str(at(r, cn.idx.code))).map(r => {
+    const o = {}; for (const k of Object.keys(cn.idx)) o[k] = str(at(r, cn.idx[k]));
+    ["carton", "setN", "unit", "ship", "est"].forEach(k => o[k] = num(at(r, cn.idx[k])));
+    return o;
+  });
+
+  const lb = table(sheetRows(wb, findSheet(wb, "raw total")), ["SKU코드", "원 상품명"], { code: "SKU코드", name: "원 상품명" });
+  const label = !lb ? [] : lb.body.filter(r => str(at(r, lb.idx.code))).map(r => ({ code: str(at(r, lb.idx.code)), name: str(at(r, lb.idx.name)) }));
+
+  return {
+    data: { summary, hub, ad: adRows, plto, cn: cnRows, label },
+    info: `SUMMARY ${summary.length} · hub sku ${hub.length} · ad raw ${adRows.length} · PLTO 재고 ${plto.length} · 중국발주 ${cnRows.length}`
+  };
+}
+const EXTRACT = { sales: exSales, supply: exSupply, process: exProcess };
+
+/* ── 브라우저 기억 (IndexedDB) ───────────────────── */
+const DB_NAME = "product_master", STORE = "kv";
+function openDb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function kvGet(key) {
+  const db = await openDb();
+  return new Promise((res, rej) => { const t = db.transaction(STORE, "readonly").objectStore(STORE).get(key); t.onsuccess = () => res(t.result); t.onerror = () => rej(t.error); });
+}
+async function kvSet(key, val) {
+  const db = await openDb();
+  return new Promise((res, rej) => { const t = db.transaction(STORE, "readwrite"); t.objectStore(STORE).put(val, key); t.oncomplete = () => res(); t.onerror = () => rej(t.error); });
+}
+async function kvClear() {
+  const db = await openDb();
+  return new Promise((res, rej) => { const t = db.transaction(STORE, "readwrite"); t.objectStore(STORE).clear(); t.oncomplete = () => res(); t.onerror = () => rej(t.error); });
+}
+
+/* ── 상태 ── */
+let SRC = {};        // kind → { name, modified, loadedAt, info, data }
+let HANDLES = {};    // kind → 파일 핸들 (다시 읽기용, 크롬·엣지만)
+let ROWS = [], FAM = {}, STATS = {};
+let sortK = "", sortDir = 1, selected = null;
+
+function setStatus(msg, cls) { const s = $("status"); s.textContent = msg || ""; s.className = "status" + (cls ? " " + cls : ""); }
+let toastT;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1300); }
+const nextFrame = () => new Promise(r => setTimeout(r, 30));
+
+/* ── 파일 읽기 ── */
+async function readOne(file) {
+  const buf = await file.arrayBuffer();
+  const opt = { type: "array", cellDates: true, cellHTML: false, cellStyles: false };
+  let wb = XLSX.read(buf, Object.assign({ sheets: ALL_SHEETS }, opt));
+  const kind = detect(wb.SheetNames);
+  if (!kind) throw new Error(`어느 파일인지 알 수 없습니다. 'R raw' · '공급가' · 'SUMMARY' 시트 중 하나가 있어야 합니다.`);
+  // 시트 이름이 조금 바뀌어 첫 번째 읽기에서 빠진 시트가 있으면 그것만 다시 읽는다
+  const miss = WANT[kind].map(p => findSheet(wb, p)).filter(n => n && !(wb.Sheets[n] && wb.Sheets[n]["!ref"]));
+  if (miss.length) {
+    const wb2 = XLSX.read(buf, Object.assign({ sheets: miss }, opt));
+    miss.forEach(n => { if (wb2.Sheets[n]) wb.Sheets[n] = wb2.Sheets[n]; });
+  }
+  const out = EXTRACT[kind](wb);
+  return { kind, rec: { name: file.name, modified: file.lastModified, loadedAt: Date.now(), info: out.info, data: out.data } };
+}
+async function loadFiles(list, doneMsg) {
+  if (!list.length) return;
+  const done = [], errs = [];
+  for (const it of list) {
+    setStatus(`'${it.file.name}' 읽는 중… (큰 파일은 몇 초 걸립니다)`, "busy");
+    await nextFrame();
+    try {
+      const t0 = performance.now();
+      const { kind, rec } = await readOne(it.file);
+      rec.ms = Math.round(performance.now() - t0);
+      SRC[kind] = rec;
+      try { await kvSet("src_" + kind, rec); } catch (e) { /* 기억 실패는 무시 */ }
+      if (it.handle) { HANDLES[kind] = it.handle; try { await kvSet("h_" + kind, it.handle); } catch (e) {} }
+      done.push(`${KIND_INFO[kind].t}: ${rec.info}`);
+    } catch (e) {
+      errs.push(`'${it.file.name}' — ${e.message || e}`);
+    }
+  }
+  rebuild(); renderAll();
+  const msg = [doneMsg, ...done.map(x => "✔ " + x), ...errs.map(x => "✖ " + x)].filter(Boolean).join("\n");
+  setStatus(msg, errs.length ? "err" : "ok");
+}
+
+/* ── 공급가 파일의 규격·색상 행 고르기 ── */
+const tokens = name => name.split(/[\s,()\[\]\/]+/).filter(Boolean);
+function matchVariant(name, cands) {
+  const toks = new Set(tokens(name)), nm = name.replace(/\s/g, "");
+  let best = null, bs = 0, ties = 0;
+  for (const v of cands) {
+    let sc = 0;
+    const sz = v.size.replace(/\s/g, ""), co = v.color.replace(/\s/g, "");
+    if (sz) { if (toks.has(v.size) || toks.has(sz)) sc += 3; else if (nm.includes(sz)) sc += 1; }
+    if (co) { if (toks.has(v.color) || toks.has(co)) sc += 3; else if (nm.includes(co)) sc += 1; }
+    if (sc > bs) { best = v; bs = sc; ties = 0; } else if (sc === bs && sc > 0) ties++;
+  }
+  return bs === 0 ? [null, "none"] : [best, ties === 0 ? "exact" : "tie"];
+}
+
+/* ── 확인할 것 ── */
+const CHECKS = [
+  { k: "loser",     t: "아이템위너 미선정", short: "위너✕",   cls: "bad",  need: "process", d: "ad raw 에서 위너가 아닌 옵션", f: x => x.ad && x.ad.winner && x.ad.winner !== "선정" },
+  { k: "supDiff",   t: "공급가 불일치",     short: "공급가≠", cls: "warn", need: "supply",  d: "R raw 쿠팡 공급가 ≠ 공급가 파일 로켓 공급가", f: x => x.supDiff != null },
+  { k: "costDiff",  t: "원가 불일치",       short: "원가≠",   cls: "warn", need: "process", d: "R raw 제품 원가 ≠ PLTO 원가", f: x => x.costDiff != null },
+  { k: "priceDiff", t: "판매가 차이",       short: "판매가≠", cls: "warn", need: "process", d: "R raw 쿠팡 판매가 ≠ ad raw 판매금액", f: x => x.priceDiff != null },
+  { k: "soldout",   t: "쿠팡 재고 0",       short: "쿠팡0",   cls: "",     need: "process", d: "ad raw 재고량이 0", f: x => x.ad && x.ad.stock === 0 },
+  { k: "noSup",     t: "쿠팡 공급가 없음",   short: "공급가?", cls: "warn", d: "R raw 에 공급가 미입력", f: x => !x.csup },
+  { k: "noStatus",  t: "상태 미입력",       short: "",        cls: "",     d: "R raw 상태 칸이 비어 있음", f: x => !x.status },
+  { k: "banned",    t: "판매불가",          short: "불가",    cls: "bad",  d: "R raw 상태가 불가", f: x => x.status === "불가" },
+  { k: "notInR",    t: "R raw 미등록",      short: "R raw없음", cls: "",   need: "process", d: "등록 SUMMARY 에만 있는 SKU", f: x => !x.inR }
+];
+const FLAG_PILL = { loser: "p-no", supDiff: "p-warn", costDiff: "p-warn", priceDiff: "p-warn", soldout: "p-none", noSup: "p-none", banned: "p-no", notInR: "p-purple" };
+
+/* ── 합치기 ── */
+function rebuild() {
+  const R = SRC.sales ? SRC.sales.data.rraw : [];
+  const sup = SRC.supply ? SRC.supply.data : null;
+  const pro = SRC.process ? SRC.process.data : null;
+
+  FAM = {};
+  const V = sup ? sup.variants : [];
+  V.forEach((v, i) => {
+    v.idx = i;
+    const k = v.brand + "_" + v.no;
+    const f = FAM[k] || (FAM[k] = { key: k, brand: v.brand, no: v.no, kind: "", date: "", img: "", variants: [] });
+    if (!f.kind && v.kind) f.kind = v.kind;
+    if (!f.date && v.date) f.date = v.date;
+    if (!f.img && v.img) f.img = v.img;
+    f.variants.push(v);
+  });
+  const hub = new Map();
+  (sup ? sup.hub : []).forEach(x => hub.set(x.skuId, x));
+  (pro ? pro.hub : []).forEach(x => hub.set(x.skuId, x));      // 등록 process 쪽이 더 크고 새로워서 덮어쓴다
+  const spec = new Map((sup ? sup.spec : []).map(x => [x.bc4, x.name]));
+  const ad = new Map((pro ? pro.ad : []).map(x => [x.optId, x]));
+  const plto = new Map((pro ? pro.plto : []).map(x => [x.code, x]));
+  const smap = new Map((pro ? pro.summary : []).map(x => [x.code, x]));
+  const cn = new Map((pro ? pro.cn : []).map(x => [x.code, x]));
+  const lbl = new Map((pro ? pro.label : []).map(x => [x.code, x.name]));
+
+  const base = R.map(r => Object.assign({ inR: true }, r));
+  if (R.length) {
+    const inR = new Set(R.map(r => r.code));
+    (pro ? pro.summary : []).forEach(s => {
+      if (inR.has(s.code)) return;
+      base.push({ inR: false, code: s.code, optId: s.optId, skuId: s.skuId, bc: s.bc, biz: s.biz, name: s.hubName || s.code, status: "",
+        stock: null, cost: s.cost, csup: s.rsup, margin: (s.rsup != null && s.cost != null) ? s.rsup - s.cost : null, csell: s.rsell, url: "", memo: "" });
+    });
+  }
+
+  const st = { exact: 0, tie: 0, fam: 0, krNone: 0, kr: 0, hub: 0, ad: 0, plto: 0, cn: 0, sm: 0, img: 0 };
+  ROWS = base.map((x, i) => {
+    const parts = x.code.split("_");
+    const origin = parts[0] === "KR" ? "KR" : parts[0] === "CN" ? "CN" : "기타";
+    const brand = origin === "KR" ? (parts[2] || "") : origin === "CN" ? (parts[1] || "") : "";
+    const no = origin === "KR" ? (parts[3] || "") : "";
+    const fam = origin === "KR" ? FAM[brand + "_" + no] || null : null;
+    let v = null, lk = "none";
+    if (fam) { const m = matchVariant(x.name, fam.variants); v = m[0]; lk = v ? m[1] : "fam"; }
+    const o = Object.assign(x, {
+      i, origin, brand, no, fam, v, lk,
+      hub: hub.get(x.skuId) || null, ad: ad.get(x.optId) || null, plto: plto.get(x.code) || null,
+      sm: smap.get(x.code) || null, cn: cn.get(x.code) || null, lbl: lbl.get(x.code) || "",
+      mname: x.bc ? spec.get(x.bc.slice(-4)) || "" : ""
+    });
+    o.rsup = v && v.rsup ? v.rsup : null;
+    o.supDiff = (lk === "exact" && o.rsup && o.csup && Math.abs(o.csup - o.rsup) >= 1) ? Math.round(o.csup - o.rsup) : null;
+    o.costDiff = (o.plto && o.plto.cost && o.cost && Math.abs(o.cost - o.plto.cost) >= 1) ? Math.round(o.cost - o.plto.cost) : null;
+    o.priceDiff = (o.ad && o.ad.price && o.csell && Math.abs(o.csell - o.ad.price) >= 1) ? Math.round(o.csell - o.ad.price) : null;
+    if (o.margin == null && o.csup != null && o.cost != null) o.margin = o.csup - o.cost;
+    o.rate = (o.margin != null && o.csup) ? o.margin / o.csup : null;
+    o.img = (v && v.img) || (o.sm && o.sm.hImg) || (o.cn && o.cn.img) || (o.plto && o.plto.img) || (fam && fam.img) || "";
+    o.flags = CHECKS.filter(c => c.f(o)).map(c => c.k);
+    if (origin === "KR") { st.kr++; if (lk === "exact") st.exact++; else if (lk === "tie") st.tie++; else if (lk === "fam") st.fam++; else st.krNone++; }
+    if (o.hub) st.hub++; if (o.ad) st.ad++; if (o.plto) st.plto++; if (o.cn) st.cn++; if (o.sm) st.sm++; if (o.img) st.img++;
+    return o;
+  });
+  STATS = st;
+}
+
+/* ── 그리기 ── */
+function renderSlots() {
+  $("slots").innerHTML = KINDS.map(k => {
+    const s = SRC[k], I = KIND_INFO[k];
+    return `<div class="slot ${s ? "on" : ""}">
+      <div class="t">${I.t}${I.req ? '<span class="req">필수</span>' : ""}</div>
+      <div class="d">${esc(I.d)}</div>
+      ${s ? `<div class="f">✔ ${esc(s.name)}</div>
+             <div class="m">파일 수정 ${fmtDT(s.modified)} · 읽은 때 ${fmtDT(s.loadedAt)}${HANDLES[k] ? " · 다시 읽기 가능" : ""}</div>
+             <div class="m">${esc(s.info)}</div>`
+          : `<div class="g">아직 없음 — 넣으면 ${esc(I.gives)} 이 붙습니다.</div>`}
+    </div>`;
+  }).join("");
+  const anyH = Object.keys(HANDLES).length > 0;
+  $("reloadBtn").hidden = !anyH;
+  $("forgetBtn").hidden = !Object.keys(SRC).length;
+  if (!ROWS.length) { $("links").innerHTML = ""; return; }
+  const S = STATS, parts = [];
+  if (SRC.supply) parts.push(`공급가표 연결 — 국산 ${S.kr}개 중 <b>정확 ${S.exact}</b> · 추정 ${S.tie} · 상품군만 ${S.fam} · 없음 ${S.krNone}`);
+  parts.push(`치수 ${S.hub}`);
+  if (SRC.process) parts.push(`쿠팡 ad raw ${S.ad} · PLTO 재고 ${S.plto} · 등록 SUMMARY ${S.sm} · 중국발주 ${S.cn}`);
+  parts.push(`이미지 ${S.img} / ${ROWS.length}`);
+  $("links").innerHTML = "이어진 정보: " + parts.join(" &nbsp;|&nbsp; ");
+}
+
+function renderTiles() {
+  const cnt = k => ROWS.filter(x => x.flags.includes(k)).length;
+  const cur = $("fCheck").value;
+  const t0 = `<div class="tile ${cur === "" ? "on" : ""}" data-k=""><div class="k">전체 SKU</div><div class="v">${ROWS.length.toLocaleString()}</div>
+    <div class="s">국산 ${ROWS.filter(x => x.origin === "KR").length} · 해외 ${ROWS.filter(x => x.origin === "CN").length}</div></div>`;
+  $("tiles").innerHTML = t0 + CHECKS.map(c => {
+    const off = c.need && !SRC[c.need];
+    return `<div class="tile ${c.cls} ${off ? "off" : ""} ${cur === c.k ? "on" : ""}" data-k="${c.k}" title="${esc(c.d)}">
+      <div class="k">${c.t}</div><div class="v">${off ? "–" : cnt(c.k).toLocaleString()}</div>
+      <div class="s">${off ? KIND_INFO[c.need].t + " 필요" : esc(c.d)}</div></div>`;
+  }).join("");
+}
+
+function fillSelect(id, values, first) {
+  const el = $(id), keep = el.value;
+  el.innerHTML = `<option value="">${first}</option>` + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+  if (values.includes(keep)) el.value = keep;
+}
+function renderFilters() {
+  fillSelect("fBiz", [...new Set(ROWS.map(x => x.biz).filter(Boolean))].sort(), "사업자 전체");
+  fillSelect("fBrand", [...new Set(ROWS.map(x => x.brand).filter(Boolean))].sort(), "브랜드 전체");
+  const el = $("fCheck"), keep = el.value;
+  el.innerHTML = '<option value="">확인할 것 전체</option>' + CHECKS.filter(c => !c.need || SRC[c.need]).map(c => `<option value="${c.k}">${c.t}</option>`).join("");
+  el.value = [...el.options].some(o => o.value === keep) ? keep : "";
+}
+
+const SORT = {
+  code: x => x.code, name: x => x.name, biz: x => x.biz, status: x => x.status, optId: x => x.optId, skuId: x => x.skuId, bc: x => x.bc,
+  cost: x => x.cost, csup: x => x.csup, margin: x => x.margin, rate: x => x.rate, csell: x => x.csell,
+  winner: x => x.ad ? x.ad.winner : null, reviews: x => x.ad ? x.ad.reviews : null, stock: x => x.stock,
+  cstock: x => x.ad ? x.ad.stock : null, flags: x => x.flags.length ? x.flags.length : null
+};
+function filtered() {
+  const q = $("q").value.trim().toLowerCase(), biz = $("fBiz").value, origin = $("fOrigin").value, brand = $("fBrand").value,
+        status = $("fStatus").value, check = $("fCheck").value, lk = $("fLink").value;
+  const words = q ? q.split(/\s+/) : [];
+  let r = ROWS.filter(x => {
+    if (biz && x.biz !== biz) return false;
+    if (origin && x.origin !== origin) return false;
+    if (brand && x.brand !== brand) return false;
+    if (status === "none" ? x.status : (status && x.status !== status)) return false;
+    if (check && !x.flags.includes(check)) return false;
+    if (lk && (x.origin !== "KR" || x.lk !== lk)) return false;
+    if (words.length) {
+      const hay = [x.code, x.name, x.optId, x.skuId, x.bc, x.fam ? x.fam.kind : "", x.mname, x.ad ? x.ad.name : "", x.lbl].join(" ").toLowerCase();
+      if (!words.every(w => hay.includes(w))) return false;
+    }
+    return true;
+  });
+  if (sortK && SORT[sortK]) {
+    const g = SORT[sortK];
+    r = r.slice().sort((a, b) => {
+      const A = g(a), B = g(b);
+      if (A == null || A === "") return 1; if (B == null || B === "") return -1;
+      if (typeof A === "number" && typeof B === "number") return (A - B) * sortDir;
+      return String(A).localeCompare(String(B), "ko") * sortDir;
+    });
+  }
+  return r;
+}
+
+const stPill = s => s === "정상" ? '<span class="pill p-ok">정상</span>' : s === "불가" ? '<span class="pill p-no">불가</span>' : '<span class="pill p-none">미입력</span>';
+const LK_PILL = { exact: '<span class="pill p-blue">정확</span>', tie: '<span class="pill p-warn">추정</span>', fam: '<span class="pill p-purple">상품군만</span>', none: '<span class="pill p-none">없음</span>' };
+const winPill = ad => !ad ? '<span class="dim">–</span>' : ad.winner === "선정" ? '<span class="pill p-ok">선정</span>' : `<span class="pill p-no">${esc(ad.winner || "?")}</span>`;
+const subv = t => `<div class="subv">${t}</div>`;
+const imgTag = (src, cls) => src ? `<img ${cls ? `class="${cls}"` : ""} loading="lazy" referrerpolicy="no-referrer" src="${esc(src)}" alt="" onerror="this.style.visibility='hidden'">` : '<div class="noimg"></div>';
+
+function renderTable() {
+  const rows = filtered();
+  $("count").innerHTML = `<b>${rows.length.toLocaleString()}</b>개 표시 (전체 ${ROWS.length.toLocaleString()}개)`;
+  $("tb").innerHTML = rows.map(x => {
+    const famLine = x.fam ? `${esc(x.brand)} ${esc(x.no)} · ${esc(x.fam.kind)}${x.v ? ` · ${esc(x.v.size)} ${esc(x.v.color)}` : ""}` : (x.ad && x.ad.name && x.ad.name !== x.name ? "쿠팡: " + esc(x.ad.name) : "");
+    return `<tr data-i="${x.i}" class="${selected === x.i ? "sel" : ""}">
+      <td class="th stk0">${imgTag(x.img)}</td>
+      <td class="mono stk1">${esc(x.code)}</td>
+      <td class="nm">${esc(x.name)}${famLine ? `<div class="fam">${famLine}</div>` : ""}</td>
+      <td class="biz">${esc(x.biz)}</td>
+      <td>${stPill(x.status)}</td>
+      <td class="mono copy" data-c="${esc(x.optId)}">${esc(x.optId) || '<span class="dim">–</span>'}</td>
+      <td class="mono copy" data-c="${esc(x.skuId)}">${esc(x.skuId) || '<span class="dim">–</span>'}</td>
+      <td class="mono copy" data-c="${esc(x.bc)}">${esc(x.bc) || '<span class="dim">–</span>'}</td>
+      <td class="num">${fmt(x.cost)}${x.costDiff != null ? subv("PLTO " + fmtN(x.plto.cost)) : ""}</td>
+      <td class="num">${fmt(x.csup)}${x.supDiff != null ? subv("공급가표 " + fmtN(x.rsup)) : ""}</td>
+      <td class="num">${fmt(x.margin)}</td>
+      <td class="num">${pct(x.rate)}</td>
+      <td class="num">${fmt(x.csell)}${x.priceDiff != null ? subv("ad raw " + fmtN(x.ad.price)) : ""}</td>
+      <td>${winPill(x.ad)}</td>
+      <td class="num">${fmt(x.ad ? x.ad.reviews : null)}</td>
+      <td class="num">${fmt(x.stock)}</td>
+      <td class="num">${fmt(x.ad ? x.ad.stock : null)}</td>
+      <td class="flags">${x.flags.map(k => { const c = CHECKS.find(z => z.k === k); return c.short ? `<span class="pill ${FLAG_PILL[k] || "p-none"}" title="${esc(c.t)}">${c.short}</span>` : ""; }).join("")}</td>
+    </tr>`;
+  }).join("");
+  document.querySelectorAll("table.main thead th").forEach(th => {
+    const a = th.querySelector(".arr"); if (a) a.remove();
+    if (th.dataset.k && th.dataset.k === sortK) th.insertAdjacentHTML("beforeend", `<span class="arr">${sortDir > 0 ? "▲" : "▼"}</span>`);
+  });
+}
+
+function renderAll() {
+  renderSlots();
+  const has = ROWS.length > 0;
+  $("main").hidden = !has;
+  $("empty").hidden = has;
+  if (!has) return;
+  renderFilters(); renderTiles(); renderTable();
+}
+
+/* ── 상세 서랍 ── */
+function kv(pairs) {
+  const rows = pairs.filter(p => p[1] !== "" && p[1] != null);
+  if (!rows.length) return '<div class="note">내용 없음</div>';
+  return `<div class="kv">${rows.map(([k, v, copy]) => copy
+    ? `<div class="k">${esc(k)}</div><div class="v copy" data-c="${esc(v)}">${esc(v)}</div>`
+    : `<div class="k">${esc(k)}</div><div class="v">${v}</div>`).join("")}</div>`;
+}
+function openDrawer(i) {
+  const x = ROWS[i]; if (!x) return;
+  selected = i;
+  document.querySelectorAll("#tb tr").forEach(tr => tr.classList.toggle("sel", +tr.dataset.i === i));
+  const f = x.fam, v = x.v, ad = x.ad, pl = x.plto, sm = x.sm, cn = x.cn, hb = x.hub;
+  let h = `<div class="dhead">
+    ${x.img ? `<a href="${esc(x.img)}" target="_blank" rel="noopener noreferrer">${imgTag(x.img)}</a>` : ""}
+    <div><div class="t">${esc(x.name)}</div><div class="c">${esc(x.code)}</div>
+      <div style="margin-top:6px">${stPill(x.status)} ${x.origin === "KR" ? LK_PILL[x.lk] : ""} <span class="biz" style="font-size:12px;margin-left:4px">${esc(x.biz)}</span>
+      ${x.flags.map(k => { const c = CHECKS.find(z => z.k === k); return c.short ? ` <span class="pill ${FLAG_PILL[k] || "p-none"}">${esc(c.t)}</span>` : ""; }).join("")}</div></div>
+    <button class="x" id="dclose" title="닫기 (Esc)">×</button></div>`;
+
+  h += `<div class="dsec"><h3>식별 정보 <span class="src">(클릭하면 복사)</span></h3>${kv([
+    ["옵션ID", x.optId, true], ["SKU ID", x.skuId, true], ["바코드", x.bc, true], ["SKU코드", x.code, true],
+    ["쿠팡 노출 상품명", ad ? esc(ad.name) : ""], ["라벨 상품명", esc(x.lbl)], ["명세서 품명", esc(x.mname)],
+    ["쿠팡 상품 링크", link(ad && ad.link, "쿠팡에서 열기")], ["R raw 링크", link(x.url)]])}</div>`;
+
+  // 파일마다 적힌 값을 한 표로 비교
+  const COLS = [["r", "R raw"], ["p", "PLTO 재고"], ["s", "공급가 파일"], ["m", "등록 SUMMARY"], ["a", "쿠팡 ad raw"], ["c", "중국발주 예상"]];
+  const MET = [
+    ["원가", { r: x.cost, p: pl && pl.cost, m: sm && sm.cost, c: cn && cn.est }, true],
+    ["쿠팡 공급가", { r: x.csup, s: v && v.rsup, m: sm && sm.rsup }, true],
+    ["쿠팡 판매가", { r: x.csell, s: v && v.rsell, m: sm && sm.rsell, a: ad && ad.price }, true],
+    ["재고", { r: x.stock, p: pl && pl.stock, a: ad && ad.stock }, false]
+  ];
+  const used = COLS.filter(([k]) => MET.some(m => m[1][k] != null && m[1][k] !== 0 || (k === "r")));
+  h += `<div class="dsec"><h3>파일별 값 비교 <span class="src">(R raw 와 다르면 노란색)</span></h3>
+    <table class="mini"><thead><tr><th></th>${used.map(c => `<th class="num">${c[1]}</th>`).join("")}</tr></thead><tbody>
+    ${MET.map(([label, vals, cmp]) => `<tr><td>${label}</td>${used.map(([k]) => {
+      const val = vals[k]; const has = val != null && !(val === 0 && k !== "r" && label !== "재고");
+      const diff = cmp && k !== "r" && k !== "c" && has && vals.r != null && Math.abs(val - vals.r) >= 1;
+      return `<td class="num ${k === "r" ? "base" : ""} ${diff ? "diff" : ""}">${has ? fmtN(val) : '<span class="dim">–</span>'}</td>`;
+    }).join("")}</tr>`).join("")}
+    </tbody></table>
+    <div class="kv" style="margin-top:8px"><div class="k">마진 (R raw)</div><div class="v">${fmt(x.margin)} · ${pct(x.rate)}</div></div>
+    ${x.supDiff != null ? `<div class="warnbox">R raw 쿠팡 공급가가 공급가 파일보다 <b>${fmtN(Math.abs(x.supDiff))}원 ${x.supDiff > 0 ? "높습니다" : "낮습니다"}</b>. 어느 쪽이 최신인지 확인이 필요합니다.</div>` : ""}
+    ${x.costDiff != null ? `<div class="warnbox">R raw 원가와 PLTO 원가가 <b>${fmtN(Math.abs(x.costDiff))}원</b> 다릅니다. 마진 계산에 어느 쪽을 쓸지 맞춰야 합니다.</div>` : ""}
+    </div>`;
+
+  if (ad) h += `<div class="dsec"><h3>쿠팡 현황 <span class="src">(③ ad raw)</span></h3>${kv([
+    ["판매금액", fmt(ad.price)], ["쿠팡 재고", fmt(ad.stock)], ["리뷰수", fmt(ad.reviews)], ["아이템위너", winPill(ad)]])}</div>`;
+
+  if (v) h += `<div class="dsec"><h3>공급가 파일의 채널별 가격 <span class="src">(연결된 행: ${esc(v.size)} ${esc(v.color)})</span></h3>
+    <table class="mini"><thead><tr><th class="num">올웨이즈 공급가</th><th class="num">올웨이즈 판매가</th><th class="num">로켓 공급가</th><th class="num">로켓 판매가</th><th class="num">RG 판매가</th><th class="num">OM 판매가</th></tr></thead>
+    <tbody><tr><td class="num">${fmt(v.sup)}</td><td class="num">${fmt(v.sell)}</td><td class="num">${fmt(v.rsup)}</td><td class="num">${fmt(v.rsell)}</td><td class="num">${fmt(v.rg)}</td><td class="num">${fmt(v.om)}</td></tr></tbody></table>
+    ${x.lk === "tie" ? '<div class="warnbox">규격·색상 이름이 두 파일에서 달라 <b>추정</b>으로 연결했습니다. 색상이 맞는지 확인해 주세요.</div>' : ""}</div>`;
+
+  if (hb) h += `<div class="dsec"><h3>규격 · 물류 <span class="src">(hub sku / 로켓SKU ID)</span></h3>${kv([
+    ["크기 (mm)", hb.L || hb.W || hb.H ? `${esc(hb.L)} × ${esc(hb.W)} × ${esc(hb.H)}` : ""], ["중량 (g)", esc(hb.wt)], ["최소구매수량", esc(hb.moq)],
+    ["박스 내 총수량", esc(hb.box)], ["이너케이스 수량", esc(hb.inner)], ["발주가능상태", esc(hb.status)],
+    ["담당 BM", esc(hb.bm)], ["발주담당자", esc(hb.buyer)], ["로켓 상품명", esc(hb.name)]])}</div>`;
+
+  if (cn || (sm && sm.u1688)) {
+    const c = cn || {};
+    h += `<div class="dsec"><h3>중국 소싱 <span class="src">(③ 중국발주 · SUMMARY)</span></h3>${kv([
+      ["1688 링크", link(c.url || (sm && sm.u1688), "1688 에서 열기")], ["1688 옵션명", esc(sm && sm.o1688)],
+      ["단가 (위안)", c.unit != null ? esc(c.unit) : ""], ["배송비 (위안)", c.ship != null ? esc(c.ship) : ""], ["SKU 구성 수", c.setN != null ? esc(c.setN) : ""],
+      ["카톤 입수량", c.carton != null ? fmt(c.carton) : ""], ["예상 개당 원가", c.est != null ? fmt(c.est) : ""],
+      ["HS CODE", esc(c.hs)], ["영문 상품명", esc(c.en)], ["옵션 색상", esc(c.ocolor)], ["옵션 사이즈", esc(c.osize)],
+      ["요청 사항", esc(c.req)], ["로켓 비고", esc(c.note)], ["1688 이미지", link(c.img, "이미지 열기")]])}</div>`;
+  }
+
+  if (sm || pl) {
+    const s = sm || {}, p = pl || {};
+    h += `<div class="dsec"><h3>등록 정보 <span class="src">(③ SUMMARY · PLTO 재고)</span></h3>${kv([
+      ["등록일", esc(s.reg)], ["매입처", esc(s.vendor || p.vendor)], ["원산지", esc(s.origin || p.origin)], ["과세여부", esc(s.tax || p.tax)],
+      ["브랜드 / 제조사", esc([s.brand || p.brand, s.maker || p.maker].filter(Boolean).join(" / "))], ["상품분류코드", esc(s.cat || p.cat)],
+      ["PLTO 재고관리코드", esc(p.mgmt)], ["PLTO 상품명", esc(p.name)], ["PLTO 속성", esc(p.attr)],
+      ["PLTO 실재고 / 가능", p.stock != null ? `${fmt(p.stock)} / ${fmt(p.avail)}` : ""],
+      ["재질 · 색상 · 크기", esc([s.mat, s.color, s.size].filter(Boolean).join(" · "))], ["제조국", esc(s.country)],
+      ["호스팅 이미지", [link(s.hImg, "대표"), link(s.hDetail, "상세"), link(s.hLabel, "라벨")].filter(Boolean).join(" · ")]])}</div>`;
+  }
+
+  if (x.memo) h += `<div class="dsec"><h3>변경 메모 <span class="src">(R raw 오른쪽 칸)</span></h3><div class="note" style="color:#374151">${esc(x.memo)}</div></div>`;
+
+  if (f) {
+    h += `<div class="dsec"><h3>같은 상품군: ${esc(f.brand)} ${esc(f.no)} ${esc(f.kind)} ${f.date ? `<span class="src">(출시 ${esc(f.date)})</span>` : ""}</h3>
+      <table class="mini"><thead><tr><th>규격</th><th>색상</th><th class="num">올웨이즈</th><th class="num">로켓 공급가</th><th class="num">로켓 판매가</th><th class="num">RG</th><th class="num">OM</th></tr></thead><tbody>
+      ${f.variants.map(w => `<tr class="${v && w.idx === v.idx ? "me" : ""}"><td>${esc(w.size)}</td><td>${esc(w.color)}</td><td class="num">${fmt(w.sup)}</td><td class="num">${fmt(w.rsup)}</td><td class="num">${fmt(w.rsell)}</td><td class="num">${fmt(w.rg)}</td><td class="num">${fmt(w.om)}</td></tr>`).join("")}
+      </tbody></table></div>`;
+    const sib = ROWS.filter(y => y.fam === f && y.i !== x.i);
+    if (sib.length) h += `<div class="dsec"><h3>같은 상품군의 다른 SKU (${sib.length})</h3><table class="mini"><thead><tr><th>SKU코드</th><th>SKU명</th><th class="num">원가</th><th class="num">쿠팡 공급가</th></tr></thead><tbody>
+      ${sib.map(y => `<tr data-i="${y.i}" style="cursor:pointer"><td style="font-family:Consolas,monospace">${esc(y.code)}</td><td style="white-space:normal">${esc(y.name)}</td><td class="num">${fmt(y.cost)}</td><td class="num">${fmt(y.csup)}</td></tr>`).join("")}
+      </tbody></table></div>`;
+  } else if (x.origin === "KR" && SRC.supply) {
+    h += `<div class="dsec note">공급가 파일에 상품번호 <b>${esc(x.brand)} ${esc(x.no)}</b> 가 없습니다. 공급가 파일에 아직 추가되지 않은 상품일 수 있습니다.</div>`;
+  }
+  const dr = $("drawer");
+  dr.innerHTML = h; dr.classList.add("open"); $("scrim").classList.add("open"); dr.scrollTop = 0;
+}
+function closeDrawer() { $("drawer").classList.remove("open"); $("scrim").classList.remove("open"); }
+
+/* ── 엑셀로 내보내기 ── */
+function exportXlsx() {
+  const rows = filtered();
+  if (!rows.length) { toast("내보낼 행이 없습니다"); return; }
+  const H = ["SKU코드", "SKU명", "사업자", "상태", "옵션ID", "SKU ID", "바코드", "제품 원가", "PLTO 원가", "쿠팡 공급가", "공급가표 로켓공급가",
+    "마진", "마진율(%)", "쿠팡 판매가(R raw)", "쿠팡 판매금액(ad raw)", "아이템위너", "리뷰수", "플토 재고", "PLTO 실재고", "쿠팡 재고",
+    "상품군", "규격", "색상", "공급가표 연결", "올웨이즈 공급가", "RG 판매가", "OM 판매가", "크기(mm)", "중량(g)", "1688 링크", "단가(위안)", "등록일", "확인할 것"];
+  const n = v => v == null || v === "" ? "" : Math.round(v);
+  const LK = { exact: "정확", tie: "추정", fam: "상품군만", none: "" };
+  const aoa = [H].concat(rows.map(x => [
+    x.code, x.name, x.biz, x.status, x.optId, x.skuId, x.bc, n(x.cost), n(x.plto && x.plto.cost), n(x.csup), n(x.rsup),
+    n(x.margin), x.rate == null ? "" : Math.round(x.rate * 1000) / 10, n(x.csell), n(x.ad && x.ad.price), x.ad ? x.ad.winner : "", n(x.ad && x.ad.reviews),
+    n(x.stock), n(x.plto && x.plto.stock), n(x.ad && x.ad.stock),
+    x.fam ? `${x.brand} ${x.no} ${x.fam.kind}` : "", x.v ? x.v.size : "", x.v ? x.v.color : "", x.origin === "KR" ? LK[x.lk] : "",
+    n(x.v && x.v.sup), n(x.v && x.v.rg), n(x.v && x.v.om),
+    x.hub && (x.hub.L || x.hub.W) ? `${x.hub.L}×${x.hub.W}×${x.hub.H}` : "", x.hub ? x.hub.wt : "",
+    (x.cn && x.cn.url) || (x.sm && x.sm.u1688) || "", x.cn && x.cn.unit != null ? x.cn.unit : "", x.sm ? x.sm.reg : "",
+    x.flags.map(k => CHECKS.find(c => c.k === k).t).join(", ")
+  ]));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = H.map((h, i) => ({ wch: i === 1 ? 44 : i === 0 ? 24 : i === 29 ? 40 : Math.max(9, h.length * 1.6) }));
+  ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: H.length - 1 } }) };
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "상품원부");
+  const d = new Date();
+  XLSX.writeFile(wb, `상품원부_${String(d.getFullYear()).slice(2)}${p2(d.getMonth() + 1)}${p2(d.getDate())}.xlsx`);
+}
+
+/* ── 이벤트 ── */
+["q", "fBiz", "fOrigin", "fBrand", "fStatus", "fLink"].forEach(id => $(id).addEventListener("input", renderTable));
+$("fCheck").addEventListener("input", () => { renderTiles(); renderTable(); });
+$("resetBtn").addEventListener("click", () => {
+  ["q", "fBiz", "fOrigin", "fBrand", "fStatus", "fCheck", "fLink"].forEach(id => $(id).value = "");
+  sortK = ""; renderTiles(); renderTable();
+});
+$("exportBtn").addEventListener("click", exportXlsx);
+$("tiles").addEventListener("click", e => {
+  const t = e.target.closest(".tile"); if (!t || t.classList.contains("off")) return;
+  $("fCheck").value = ($("fCheck").value === t.dataset.k) ? "" : t.dataset.k;
+  renderTiles(); renderTable();
+});
+document.querySelector("table.main thead").addEventListener("click", e => {
+  const th = e.target.closest("th"); if (!th || !th.dataset.k) return;
+  if (sortK === th.dataset.k) sortDir = -sortDir; else { sortK = th.dataset.k; sortDir = 1; }
+  renderTable();
+});
+function copyFrom(el) { const v = el.dataset.c; if (!v) return false; if (navigator.clipboard) navigator.clipboard.writeText(v).catch(() => {}); toast("복사됨: " + v); return true; }
+$("tb").addEventListener("click", e => {
+  const c = e.target.closest(".copy"); if (c && copyFrom(c)) return;
+  const tr = e.target.closest("tr"); if (tr) openDrawer(+tr.dataset.i);
+});
+$("scrim").addEventListener("click", closeDrawer);
+$("drawer").addEventListener("click", e => {
+  if (e.target.id === "dclose") return closeDrawer();
+  const c = e.target.closest(".copy"); if (c && copyFrom(c)) return;
+  const tr = e.target.closest("tr[data-i]"); if (tr) openDrawer(+tr.dataset.i);
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+/* 파일 넣기: 칸에 놓거나, 화면 어디에 놓아도 된다 */
+let dragDepth = 0;
+const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes("Files");
+window.addEventListener("dragenter", e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; $("dragcover").classList.add("on"); $("drop").classList.add("over"); });
+window.addEventListener("dragover", e => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener("dragleave", e => { if (!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) { $("dragcover").classList.remove("on"); $("drop").classList.remove("over"); } });
+window.addEventListener("drop", async e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0; $("dragcover").classList.remove("on"); $("drop").classList.remove("over");
+  // 핸들은 놓는 순간에만 받을 수 있어서, 기다리기 전에 모두 요청해 둔다
+  const items = [...(e.dataTransfer.items || [])].filter(it => it.kind === "file");
+  const files = [...e.dataTransfer.files];
+  const hp = items.map(it => typeof it.getAsFileSystemHandle === "function" ? it.getAsFileSystemHandle().catch(() => null) : Promise.resolve(null));
+  const handles = await Promise.all(hp);
+  const list = [];
+  for (let i = 0; i < files.length; i++) {
+    const h = handles[i] && handles[i].kind === "file" ? handles[i] : null;
+    list.push({ file: files[i], handle: h });
+  }
+  await loadFiles(list);
+});
+$("drop").addEventListener("click", async () => {
+  if (typeof window.showOpenFilePicker === "function") {
+    try {
+      const hs = await window.showOpenFilePicker({ multiple: true, id: "product-master",
+        types: [{ description: "엑셀 파일", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx", ".xlsm"] } }] });
+      const list = [];
+      for (const h of hs) list.push({ file: await h.getFile(), handle: h });
+      await loadFiles(list);
+    } catch (e) { if (e && e.name !== "AbortError") setStatus("파일을 열지 못했습니다: " + (e.message || e), "err"); }
+  } else $("fileInput").click();
+});
+$("fileInput").addEventListener("change", async e => {
+  const list = [...e.target.files].map(f => ({ file: f, handle: null }));
+  e.target.value = "";
+  await loadFiles(list);
+});
+
+/* 같은 파일 다시 읽기: 처음 끌어다 놓은 파일을 기억해 두었다가 최신 내용으로 다시 읽는다 */
+$("reloadBtn").addEventListener("click", async () => {
+  const ks = Object.keys(HANDLES);
+  // 허락 요청은 버튼을 누른 그 순간에 모두 보내야 크롬이 막지 않는다
+  const perms = await Promise.all(ks.map(k => HANDLES[k].requestPermission({ mode: "read" }).catch(() => "denied")));
+  const list = [], errs = [];
+  for (let i = 0; i < ks.length; i++) {
+    const k = ks[i];
+    if (perms[i] !== "granted") { errs.push(`${KIND_INFO[k].t}: 파일 읽기를 허락하지 않아 건너뜀`); continue; }
+    try { list.push({ file: await HANDLES[k].getFile(), handle: HANDLES[k] }); }
+    catch (e) { errs.push(`${KIND_INFO[k].t}: 파일을 찾지 못했습니다 (이름이 바뀌었거나 옮겨짐). 다시 끌어다 놓아 주세요.`); }
+  }
+  await loadFiles(list, "같은 파일을 다시 읽었습니다.");
+  if (errs.length) setStatus($("status").textContent + "\n" + errs.map(x => "✖ " + x).join("\n"), "err");
+});
+$("forgetBtn").addEventListener("click", async () => {
+  if (!confirm("이 브라우저에 기억해 둔 파일 내용과 파일 위치를 지웁니다. 엑셀 원본은 그대로 남습니다. 지울까요?")) return;
+  try { await kvClear(); } catch (e) {}
+  SRC = {}; HANDLES = {}; ROWS = []; closeDrawer();
+  rebuild(); renderAll(); setStatus("기억을 지웠습니다.", "ok");
+});
+
+/* ── 시작: 기억해 둔 내용을 먼저 보여주고, 허락이 살아 있으면 바뀐 파일만 조용히 다시 읽는다 ── */
+(async function start() {
+  try { for (const k of KINDS) { const v = await kvGet("src_" + k); if (v) SRC[k] = v; } } catch (e) {}
+  try { for (const k of KINDS) { const h = await kvGet("h_" + k); if (h) HANDLES[k] = h; } } catch (e) {}
+  rebuild(); renderAll();
+  if (Object.keys(SRC).length) setStatus("지난번에 읽은 내용을 보여줍니다. 파일이 바뀌었으면 다시 끌어다 놓거나 '같은 파일 다시 읽기' 를 누르세요.");
+  const fresh = [];
+  for (const k of Object.keys(HANDLES)) {
+    try {
+      if (await HANDLES[k].queryPermission({ mode: "read" }) !== "granted") continue;
+      const f = await HANDLES[k].getFile();
+      if (!SRC[k] || f.lastModified !== SRC[k].modified) fresh.push({ file: f, handle: HANDLES[k] });
+    } catch (e) {}
+  }
+  if (fresh.length) await loadFiles(fresh, "바뀐 파일을 새로 읽었습니다.");
+})();
+</script>
+</body>
+</html>
