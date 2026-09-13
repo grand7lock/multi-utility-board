@@ -115,9 +115,25 @@
   }
   .move button:hover:not(:disabled) { background: #eff6ff; border-color: #93c5fd; color: #2563eb; }
   .move button:disabled { opacity: .3; cursor: default; }
+
+  /* ── 카드 숨기기 ── */
+  .hide {
+    position: absolute; top: 8px; right: 8px;
+    padding: 2px 8px; border: 1px solid #e5e7eb; border-radius: 999px; background: #fff;
+    color: #6b7280; font-size: 11px; font-family: inherit; line-height: 1.5; cursor: pointer;
+    opacity: 0; transition: opacity .12s;
+  }
+  .card:hover .hide, .card:focus-within .hide { opacity: 1; }
+  .hide:hover { background: #fef2f2; border-color: #fca5a5; color: #b42318; }
+  /* 숨긴 카드를 보여줄 때는 흐리게, 점선으로 */
+  .card.is-hidden { opacity: .5; border-style: dashed; box-shadow: none; }
+  .card.is-hidden:hover { opacity: .9; }
+  .card.is-hidden .hide { opacity: 1; }
+  .card.is-hidden .hide:hover { background: #ecfdf5; border-color: #6ee7b7; color: #047857; }
+  .sec-h .hid { font-size: 11.5px; color: #9ca3af; }
   /* 손가락으로 쓰는 화면에서는 화살표를 늘 보이게 (끌어놓기가 안 되므로) */
   @media (hover: none) {
-    .move { opacity: 1; }
+    .move, .hide { opacity: 1; }
     /* 마우스 올리기가 없어서 팝업이 뜰 수 없으므로 설명을 더 보여준다 */
     .desc { -webkit-line-clamp: 6; }
     .full { display: none !important; }
@@ -138,6 +154,7 @@
     <span style="flex:1"></span>
     <input type="search" id="q" placeholder="이름·설명으로 찾기" autocomplete="off">
     <span class="saved" id="saved">저장됨</span>
+    <button id="hiddenBtn" hidden></button>
     <button id="resetBtn">기본 순서로</button>
   </div>
 
@@ -145,7 +162,8 @@
 
   <footer>
     입력한 데이터는 브라우저 안에서만 처리되며 서버에 저장되지 않습니다.<br>
-    카드 순서와 섹션 순서도 이 브라우저에만 저장됩니다. 다른 PC에서는 기본 순서로 보입니다.
+    카드 순서 · 섹션 순서 · 숨긴 카드는 이 브라우저에만 저장됩니다. 다른 PC에서는 기본 상태로 보입니다.<br>
+    카드에 마우스를 올리면 오른쪽 위에 <b>숨기기</b>가 나옵니다. 숨긴 카드는 위의 「숨긴 카드 보기」에서 되돌립니다.
   </footer>
 </div>
 
@@ -281,6 +299,10 @@ function loadLayout() {
 
 function saveLayout() {
   try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch (e) {}
+  flashSaved();
+}
+
+function flashSaved() {
   var el = document.getElementById("saved");
   el.classList.add("show");
   clearTimeout(saveLayout._t);
@@ -290,6 +312,29 @@ function saveLayout() {
 /* ── 그리기 ─────────────────────────────────────── */
 
 var layout = loadLayout();
+
+/* ── 숨긴 카드 ───────────────────────────────────
+   숨긴 도구의 url 목록. 순서 배치와 따로 저장해서 서로 꼬이지 않게 한다. */
+var HIDDEN_KEY = "board_hidden_v1";
+var hidden = loadHidden();
+var showHidden = false;   // 숨긴 카드도 흐리게 보여줄지
+
+function loadHidden() {
+  var a = null;
+  try { a = JSON.parse(localStorage.getItem(HIDDEN_KEY)); } catch (e) {}
+  if (!Array.isArray(a)) return [];
+  // 지금 없는 도구와 중복은 버린다
+  return a.filter(function (u, i) { return toolByUrl(u) && a.indexOf(u) === i; });
+}
+function isHidden(url) { return hidden.indexOf(url) !== -1; }
+function toggleHidden(url) {
+  var i = hidden.indexOf(url);
+  if (i === -1) { hidden.push(url); } else { hidden.splice(i, 1); }
+  if (hidden.length === 0) { showHidden = false; }
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(hidden)); } catch (e) {}
+  flashSaved();
+  render();
+}
 var board = document.getElementById("board");
 var pendingFocus = null;   // 다시 그린 뒤 초점을 돌려줄 버튼
 
@@ -320,7 +365,9 @@ function moveSection(kind, dir) {
   render();
 }
 
-function makeCard(t, kind, i, last, movable) {
+/* prev / next 는 화면에 보이는 앞뒤 카드의 실제 자리(-1 이면 없음).
+   숨긴 카드를 건너뛰고 옮겨야 화살표를 눌렀을 때 아무 일도 안 일어난 것처럼 보이지 않는다. */
+function makeCard(t, kind, i, movable, prev, next, hid) {
   var external = isExternal(t.url);
   var card = document.createElement("a");
   card.className = "card";
@@ -348,6 +395,20 @@ function makeCard(t, kind, i, last, movable) {
     // 3줄에 안 들어갈 만큼 길 때만 전체보기를 붙인다
     (t.desc.length > 62 ? '<div class="full">' + esc(t.desc) + "</div>" : "");
 
+  if (hid) { card.classList.add("is-hidden"); }
+
+  var hb = document.createElement("button");
+  hb.type = "button";
+  hb.className = "hide";
+  hb.textContent = hid ? "다시 보이기" : "숨기기";
+  hb.title = hid ? "이 카드를 다시 보이게 합니다" : "이 카드를 숨깁니다. 위의 「숨긴 카드 보기」에서 되돌릴 수 있습니다";
+  hb.addEventListener("click", function (e) {
+    e.preventDefault();   // 카드가 링크라서 눌러도 열리지 않게 막는다
+    e.stopPropagation();
+    toggleHidden(t.url);
+  });
+  card.appendChild(hb);
+
   // 찾는 중에는 순서를 못 바꾼다 (걸러진 자리에서 옮기면 엉뚱한 곳으로 간다)
   if (!movable) { return card; }
 
@@ -359,11 +420,12 @@ function makeCard(t, kind, i, last, movable) {
     '<button type="button" data-dir="1" title="뒤로" aria-label="뒤로 옮기기">▶</button>';
   mv.querySelectorAll("button").forEach(function (b) {
     var dir = parseInt(b.dataset.dir, 10);
-    if (i + dir < 0 || i + dir > last) b.disabled = true;
+    var to = dir < 0 ? prev : next;
+    if (to === -1) b.disabled = true;
     b.addEventListener("click", function (e) {
       e.preventDefault();   // 카드가 링크라서 눌러도 이동하지 않게 막는다
       e.stopPropagation();
-      moveCard(kind, i, i + dir, dir);
+      moveCard(kind, i, to, dir);
     });
   });
   card.appendChild(mv);
@@ -380,9 +442,20 @@ function render() {
   board.innerHTML = "";
   var hits = 0;
 
+  var hbtn = document.getElementById("hiddenBtn");
+  hbtn.hidden = hidden.length === 0;
+  hbtn.textContent = showHidden ? "숨긴 카드 다시 감추기" : "숨긴 카드 보기 (" + hidden.length + ")";
+
   layout.sections.forEach(function (kind, si) {
     var meta = sectionByKey(kind);
     var urls = layout.order[kind] || [];
+    var hiddenHere = urls.filter(isHidden).length;
+    // 이번에 화면에 그릴 카드의 실제 자리들
+    var vis = [];
+    urls.forEach(function (u, i) {
+      var t = toolByUrl(u);
+      if (t && matches(t) && (showHidden || !isHidden(u))) vis.push(i);
+    });
 
     var sec = document.createElement("div");
     sec.className = "sec";
@@ -392,7 +465,8 @@ function render() {
     h.className = "sec-h";
     h.innerHTML =
       '<span class="t">' + (si + 1) + " · " + esc(meta.title) + "</span>" +
-      '<span class="n">' + urls.filter(function (u) { var x = toolByUrl(u); return x && matches(x); }).length + "개</span>" +
+      '<span class="n">' + urls.filter(function (u) { var x = toolByUrl(u); return x && matches(x) && !isHidden(u); }).length + "개</span>" +
+      (hiddenHere && !query ? '<span class="hid">숨김 ' + hiddenHere + "</span>" : "") +
       '<span class="d">' + esc(meta.desc) + "</span>" +
       '<span class="sp"></span>';
 
@@ -419,14 +493,22 @@ function render() {
     } else {
       var grid = document.createElement("div");
       grid.className = "grid";
-      urls.forEach(function (url, i) {
-        var t = toolByUrl(url);
-        if (!t || !matches(t)) return;
-        grid.appendChild(makeCard(t, kind, i, urls.length - 1, !query));
+      vis.forEach(function (i, p) {
+        var url = urls[i];
+        grid.appendChild(makeCard(toolByUrl(url), kind, i, !query,
+          p > 0 ? vis[p - 1] : -1, p < vis.length - 1 ? vis[p + 1] : -1, isHidden(url)));
         shown++;
         hits++;
       });
       sec.appendChild(grid);
+      // 이 섹션 카드를 전부 숨겼으면 섹션이 사라진 것처럼 보이지 않게 한 줄 남긴다
+      if (shown === 0 && !query) {
+        var allHid = document.createElement("div");
+        allHid.className = "secempty";
+        allHid.textContent = "이 섹션의 카드를 모두 숨겼습니다. 위의 「숨긴 카드 보기」에서 되돌릴 수 있습니다.";
+        sec.appendChild(allHid);
+        shown = 1;
+      }
     }
 
     // 찾는 중이고 이 섹션에 걸린 게 없으면 섹션째 감춘다
@@ -437,7 +519,11 @@ function render() {
   if (query && hits === 0) {
     var nh = document.createElement("div");
     nh.className = "nohit";
-    nh.textContent = "'" + query + "' 에 걸리는 도구가 없습니다.";
+    // 숨긴 카드에는 있으면 "없다" 대신 어디 있는지 알려준다
+    var inHidden = !showHidden && TOOLS.some(function (t) { return isHidden(t.url) && matches(t); });
+    nh.textContent = inHidden
+      ? "'" + query + "' 은(는) 숨긴 카드에만 있습니다. 위의 「숨긴 카드 보기」를 누르세요."
+      : "'" + query + "' 에 걸리는 도구가 없습니다.";
     board.appendChild(nh);
   }
 
@@ -497,6 +583,11 @@ document.getElementById("resetBtn").addEventListener("click", function () {
   if (!confirm("섹션 순서와 카드 순서를 기본값으로 되돌릴까요?")) return;
   layout = defaultLayout();
   saveLayout();
+  render();
+});
+
+document.getElementById("hiddenBtn").addEventListener("click", function () {
+  showHidden = !showHidden;
   render();
 });
 
