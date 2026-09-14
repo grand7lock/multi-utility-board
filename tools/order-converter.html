@@ -52,21 +52,28 @@
 
   <div class="hint">
     💡 사용 순서: ① 주문 엑셀 파일을 올리면 → ② 열 매핑을 자동 추천해 주고(틀리면 직접 고르면 됨) → ③ 변환 결과를 확인하고 엑셀로 내려받거나 송장 생성기로 넘깁니다.<br>
-    · 송장은 주문당 1장만 나오도록, 주문 수량은 <b>상품명 끝에 "- 수량 N개"</b>로 붙고 수량 칸은 <b>1로 고정</b>됩니다 (한 박스에 N개 포장).
+    · 송장은 주문당 1장만 나오도록, 주문 수량은 <b>상품명 끝에 "- 수량 N개"</b>로 붙고 수량 칸은 <b>1로 고정</b>됩니다 (한 박스에 N개 포장).<br>
+    · <b>여러 파일을 한꺼번에</b> 올릴 수 있고, <b>이름·전화·주소가 같은 주문은 한 건으로 묶여</b> 상품명이 줄바꿈으로 이어집니다 (송장 1장에 함께 인쇄).
   </div>
 
   <div class="panel" id="step1">
     <h2>① 주문 엑셀 업로드</h2>
     <div class="drop" id="drop" onclick="document.getElementById('file').click()">
-      📂 여기를 클릭하거나 주문 엑셀 파일(.xlsx / .csv)을 끌어다 놓으세요
+      📂 여기를 클릭하거나 주문 엑셀 파일(.xlsx / .csv)을 끌어다 놓으세요 — <b>여러 파일을 한꺼번에</b> 올려도 됩니다
     </div>
-    <input type="file" id="file" accept=".xlsx,.xls,.csv" style="display:none">
-    <div id="fileInfo" style="margin-top:8px;font-size:13px;color:#374151"></div>
+    <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple style="display:none">
+    <div id="fileInfo" style="margin-top:8px;font-size:13px;color:#374151;line-height:1.7"></div>
+    <button id="clearFilesBtn" style="display:none;margin-top:6px" onclick="clearFiles()">🗑 올린 파일 모두 비우기</button>
   </div>
 
   <div class="panel" id="step2">
     <h2>② 열 매핑 확인 <span style="font-weight:400;color:#9ca3af">(자동 추천됨 — 틀린 항목만 바꿔주세요. <b style="color:#dc2626">*</b>는 필수)</span></h2>
     <div class="maprow" id="maprows"></div>
+    <div class="toolbar">
+      <label style="font-size:13px;color:#374151"><input type="checkbox" id="mergeSame" checked>
+        같은 수령인(이름·전화·주소)은 <b>한 건으로 묶기</b> — 상품명을 한 줄 띄워 이어 붙이고 송장 1장만 나오게
+      </label>
+    </div>
     <div class="toolbar">
       <button class="primary" onclick="applyMapping()">③ 변환 미리보기</button>
     </div>
@@ -113,46 +120,77 @@ var TARGETS = [
     cands:["최종 상품별 총 주문금액","상품별 총 주문금액","결제금액","총 결제금액","판매금액","상품금액","판매가","결제액"] },
 ];
 
-var headers = [], dataRows = [], converted = [];
+var srcFiles = [], converted = [];
+var headers = [];   // 첫 파일의 헤더 (매핑 UI 기준)
 
-/* ---- 파일 로드 ---- */
-el("file").addEventListener("change", function(e){ if(e.target.files[0]) loadFile(e.target.files[0]); });
+/* ---- 파일 로드 (여러 개 가능, 올릴 때마다 목록에 추가) ---- */
+el("file").addEventListener("change", function(e){ if(e.target.files.length) addFiles(e.target.files); e.target.value = ""; });
 var drop = el("drop");
 drop.addEventListener("dragover", function(e){ e.preventDefault(); drop.classList.add("on"); });
 drop.addEventListener("dragleave", function(){ drop.classList.remove("on"); });
 drop.addEventListener("drop", function(e){
   e.preventDefault(); drop.classList.remove("on");
-  if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  if(e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
 });
 
-function loadFile(f){
-  var reader = new FileReader();
-  reader.onload = function(ev){
-    try {
-      var wb = XLSX.read(ev.target.result, {type:"array"});
-      var ws = wb.Sheets[wb.SheetNames[0]];
-      var aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
-      if(!aoa.length){ alert("빈 파일입니다."); return; }
-      // 헤더 행 찾기: 처음 10행 중 후보 키워드와 가장 많이 일치하는 행
-      var best = 0, bestScore = -1;
-      for(var r=0; r<Math.min(10, aoa.length); r++){
-        var score = 0;
-        aoa[r].forEach(function(cell){
-          var s = String(cell).trim();
-          if(!s) return;
-          TARGETS.forEach(function(t){ if(t.cands.some(function(c){ return s.indexOf(c) !== -1 || c.indexOf(s) !== -1; })) score++; });
-        });
-        if(score > bestScore){ bestScore = score; best = r; }
-      }
-      headers = aoa[best].map(function(h){ return String(h).trim(); });
-      dataRows = aoa.slice(best+1).filter(function(row){ return row.some(function(c){ return String(c).trim(); }); });
-      el("fileInfo").textContent = "✅ " + f.name + " — 헤더 " + (best+1) + "행, 데이터 " + dataRows.length + "건 (시트: " + wb.SheetNames[0] + ")";
-      buildMappingUI();
-      el("step2").style.display = "block";
-      el("step3").style.display = "none";
-    } catch(err){ alert("파일을 읽지 못했습니다: " + err.message); }
+function parseWorkbook(name, buf){
+  var wb = XLSX.read(buf, {type:"array"});
+  var ws = wb.Sheets[wb.SheetNames[0]];
+  var aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+  if(!aoa.length) throw new Error("빈 파일");
+  // 헤더 행 찾기: 처음 10행 중 후보 키워드와 가장 많이 일치하는 행
+  var best = 0, bestScore = -1;
+  for(var r=0; r<Math.min(10, aoa.length); r++){
+    var score = 0;
+    aoa[r].forEach(function(cell){
+      var s = String(cell).trim();
+      if(!s) return;
+      TARGETS.forEach(function(t){ if(t.cands.some(function(c){ return s.indexOf(c) !== -1 || c.indexOf(s) !== -1; })) score++; });
+    });
+    if(score > bestScore){ bestScore = score; best = r; }
+  }
+  return {
+    name: name,
+    headers: aoa[best].map(function(h){ return String(h).trim(); }),
+    rows: aoa.slice(best+1).filter(function(row){ return row.some(function(c){ return String(c).trim(); }); })
   };
-  reader.readAsArrayBuffer(f);
+}
+
+function addFiles(fileList){
+  var arr = Array.prototype.slice.call(fileList);
+  var remaining = arr.length;
+  arr.forEach(function(f){
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      try { srcFiles.push(parseWorkbook(f.name, ev.target.result)); }
+      catch(err){ alert(f.name + " — 읽기 실패: " + err.message); }
+      if(--remaining === 0) afterFilesLoaded();
+    };
+    reader.onerror = function(){ if(--remaining === 0) afterFilesLoaded(); };
+    reader.readAsArrayBuffer(f);
+  });
+}
+
+function afterFilesLoaded(){
+  if(!srcFiles.length) return;
+  headers = srcFiles[0].headers;
+  var total = 0;
+  el("fileInfo").innerHTML = srcFiles.map(function(fo){
+    total += fo.rows.length;
+    return "✅ " + fo.name + " — " + fo.rows.length + "건";
+  }).join("<br>") + "<br><b>합계 " + total + "건</b>";
+  el("clearFilesBtn").style.display = "inline-block";
+  buildMappingUI();
+  el("step2").style.display = "block";
+  el("step3").style.display = "none";
+}
+
+function clearFiles(){
+  srcFiles = []; headers = []; converted = [];
+  el("fileInfo").innerHTML = "";
+  el("clearFilesBtn").style.display = "none";
+  el("step2").style.display = "none";
+  el("step3").style.display = "none";
 }
 
 /* ---- 매핑 UI ---- */
@@ -201,8 +239,22 @@ function applyMapping(){
   });
   if(missing.length){ alert("필수 항목의 열을 골라주세요: " + missing.join(", ")); return; }
 
-  converted = dataRows.map(function(row){
-    var get = function(k){ return map[k] >= 0 ? String(row[map[k]] == null ? "" : row[map[k]]).trim() : ""; };
+  // 파일마다 열 위치가 다를 수 있으므로, 첫 파일에서 고른 '열 이름'으로 각 파일의 열을 찾는다
+  var rowsAll = [];
+  srcFiles.forEach(function(fo){
+    var colOf = {};
+    TARGETS.forEach(function(t){
+      var idx = map[t.key];
+      if(idx < 0){ colOf[t.key] = -1; return; }
+      var own = fo.headers.indexOf(headers[idx]);
+      colOf[t.key] = own !== -1 ? own : idx;   // 같은 이름이 없으면 같은 위치로 간주
+    });
+    fo.rows.forEach(function(row){ rowsAll.push({ row: row, colOf: colOf }); });
+  });
+
+  converted = rowsAll.map(function(entry){
+    var row = entry.row, colOf = entry.colOf;
+    var get = function(k){ return colOf[k] >= 0 ? String(row[colOf[k]] == null ? "" : row[colOf[k]]).trim() : ""; };
     var item = get("item");
     var opt = get("opt");
     if(opt && opt !== item) item = item + (item ? " / " : "") + opt;
@@ -219,14 +271,37 @@ function applyMapping(){
              zip:zip, addr:get("addr"), memo:get("memo"), price:get("price").replace(/[^\d.]/g,"") };
   }).filter(function(r){ return r.name || r.addr || r.item; });
 
+  // 같은 수령인(이름·전화·주소) 묶기: 상품명을 한 줄 띄워 이어 붙이고 송장 1건으로
+  var beforeMerge = converted.length;
+  if(el("mergeSame").checked) converted = mergeSameReceiver(converted);
+  var mergedCnt = beforeMerge - converted.length;
+
   var tb = el("preview"); tb.innerHTML = "";
   converted.forEach(function(r, i){
     var tr = document.createElement("tr");
-    tr.innerHTML = "<td>"+(i+1)+"</td><td>"+esc(r.item)+"</td><td>"+esc(r.qty)+"</td><td>"+esc(r.name)+"</td><td>"+esc(r.phone)+"</td><td>"+esc(r.zip)+"</td><td>"+esc(r.addr)+"</td><td>"+esc(r.memo)+"</td>";
+    tr.innerHTML = "<td>"+(i+1)+"</td><td style=\"white-space:pre-line\">"+esc(r.item)+"</td><td>"+esc(r.qty)+"</td><td>"+esc(r.name)+"</td><td>"+esc(r.phone)+"</td><td>"+esc(r.zip)+"</td><td>"+esc(r.addr)+"</td><td>"+esc(r.memo)+"</td>";
     tb.appendChild(tr);
   });
-  el("convCount").textContent = "— " + converted.length + "건 변환됨";
+  el("convCount").textContent = "— " + converted.length + "건 변환됨" + (mergedCnt ? " (같은 수령인 " + mergedCnt + "건을 묶었음)" : "");
   el("step3").style.display = "block";
+}
+
+/* 같은 수령인 묶기: 키 = 이름 + 전화(숫자만) + 주소(공백 제거) */
+function mergeSameReceiver(list){
+  var out = [], at = {};
+  list.forEach(function(r){
+    if(!r.name.trim() || !r.addr.trim()){ out.push(r); return; }
+    var key = r.name.trim() + "|" + r.phone.replace(/\D/g, "") + "|" + r.addr.replace(/\s+/g, "");
+    if(at[key] === undefined){ at[key] = out.length; out.push(r); return; }
+    var base = out[at[key]];
+    base.item = base.item + " ,\n\n" + r.item;          // 캡처 양식: "… - 수량 1개 ,(빈 줄)다음 상품"
+    if(r.memo && base.memo.indexOf(r.memo) === -1) base.memo = base.memo ? base.memo + " / " + r.memo : r.memo;
+    if(!base.zip && r.zip) base.zip = r.zip;
+    var p1 = parseFloat(base.price) || 0, p2 = parseFloat(r.price) || 0;
+    if(p1 || p2) base.price = String(p1 + p2);
+    // 수량 칸은 1 유지 (송장 1장)
+  });
+  return out;
 }
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 
