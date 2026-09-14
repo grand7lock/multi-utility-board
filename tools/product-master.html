@@ -142,6 +142,15 @@
                align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: #1d4ed8; pointer-events: none; }
   .dragcover.on { display: flex; }
   footer { margin-top: 16px; font-size: 12px; color: #9ca3af; line-height: 1.7; }
+
+  /* ── 비밀번호 ── */
+  .gate-t { font-weight: 700; margin-bottom: 8px; font-size: 14px; }
+  .gate-row { display: flex; gap: 8px; max-width: 320px; }
+  .gate-row input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 13px; font-family: inherit; }
+  .gate-row input:focus { outline: none; border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(147, 197, 253, .35); }
+  .gate-row button { padding: 8px 14px; border: 1px solid #2563eb; border-radius: 7px; background: #2563eb; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .gate-row button:hover { background: #1d4ed8; }
+  .gate-err { color: #b91c1c; font-size: 12.5px; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -152,6 +161,19 @@
     매출 파일의 <b>'R raw' 시트</b>를 기준 목록으로 삼고, <b>BENW 공급가 파일</b>과 <b>로켓 상품 등록 process 파일</b>의 내용을 SKU 하나에 모아 봅니다.
     파일끼리 값이 다른 곳(공급가 · 원가 · 판매가)과 아이템위너 미선정을 짚어줍니다.
   </div>
+
+  <!-- 비밀번호 -->
+  <section class="panel" id="gate">
+    <div class="gate-t">비밀번호를 입력해주세요</div>
+    <div class="gate-row">
+      <input type="password" id="pw" placeholder="비밀번호" autocomplete="off">
+      <button type="button" id="pwBtn">들어가기</button>
+    </div>
+    <div class="gate-err" id="pwErr" hidden>비밀번호가 틀렸습니다.</div>
+  </section>
+
+  <!-- 비밀번호를 통과해야 아래가 보인다 -->
+  <div id="unlocked" hidden>
 
   <section class="panel">
     <div class="slots" id="slots"></div>
@@ -218,6 +240,8 @@
     파일 내용은 이 브라우저 안에서만 읽고 서버로 보내지 않습니다. 마지막으로 읽은 내용은 이 PC 의 브라우저에만 기억되어 다음에 열면 바로 보입니다 (기억 지우기로 삭제).<br>
     옵션ID · SKU ID · 바코드는 클릭하면 복사됩니다. 행을 클릭하면 오른쪽에 상세가 열립니다. 표 제목을 클릭하면 정렬됩니다.
   </footer>
+
+  </div><!-- /#unlocked -->
 </div>
 
 <div class="scrim" id="scrim"></div>
@@ -234,6 +258,11 @@ const esc = v => String(v ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "
 const norm = h => String(h ?? "").replace(/\s+/g, "");
 const p2 = n => String(n).padStart(2, "0");
 const isEmpty = v => v == null || v === "";
+
+/* 비밀번호 — 중국어 캡처 번역기 · 타카라 명세표 입력기와 같은 방식의 간단한 잠금 */
+const PASSWORD = "1212";
+const K_GATE = "pm_gate";
+let UNLOCKED = false;
 
 /* ── 값 다듬기 ───────────────────────────────── */
 // 날짜 칸은 시간대에 따라 하루 밀릴 수 있어 반나절을 더한 뒤 UTC 로 날짜만 뽑는다
@@ -896,12 +925,13 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(
 /* 파일 넣기: 칸에 놓거나, 화면 어디에 놓아도 된다 */
 let dragDepth = 0;
 const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes("Files");
-window.addEventListener("dragenter", e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; $("dragcover").classList.add("on"); $("drop").classList.add("over"); });
+window.addEventListener("dragenter", e => { if (!hasFiles(e) || !UNLOCKED) return; e.preventDefault(); dragDepth++; $("dragcover").classList.add("on"); $("drop").classList.add("over"); });
 window.addEventListener("dragover", e => { if (hasFiles(e)) e.preventDefault(); });
 window.addEventListener("dragleave", e => { if (!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) { $("dragcover").classList.remove("on"); $("drop").classList.remove("over"); } });
 window.addEventListener("drop", async e => {
   if (!hasFiles(e)) return;
   e.preventDefault();
+  if (!UNLOCKED) return;   // 잠겨 있으면 무시 (브라우저가 파일을 열어버리지 않게 기본 동작만 막는다)
   dragDepth = 0; $("dragcover").classList.remove("on"); $("drop").classList.remove("over");
   // 핸들은 놓는 순간에만 받을 수 있어서, 기다리기 전에 모두 요청해 둔다
   const items = [...(e.dataTransfer.items || [])].filter(it => it.kind === "file");
@@ -954,8 +984,9 @@ $("forgetBtn").addEventListener("click", async () => {
   rebuild(); renderAll(); setStatus("기억을 지웠습니다.", "ok");
 });
 
-/* ── 시작: 기억해 둔 내용을 먼저 보여주고, 허락이 살아 있으면 바뀐 파일만 조용히 다시 읽는다 ── */
-(async function start() {
+/* ── 시작: 기억해 둔 내용을 먼저 보여주고, 허락이 살아 있으면 바뀐 파일만 조용히 다시 읽는다 ──
+   비밀번호를 통과한 뒤에만 부른다. 그 전에는 원가·마진이 화면 안에 들어오지도 않게 한다. */
+async function start() {
   try { for (const k of KINDS) { const v = await kvGet("src_" + k); if (v) SRC[k] = v; } } catch (e) {}
   try { for (const k of KINDS) { const h = await kvGet("h_" + k); if (h) HANDLES[k] = h; } } catch (e) {}
   rebuild(); renderAll();
@@ -969,7 +1000,34 @@ $("forgetBtn").addEventListener("click", async () => {
     } catch (e) {}
   }
   if (fresh.length) await loadFiles(fresh, "바뀐 파일을 새로 읽었습니다.");
-})();
+}
+
+/* ── 비밀번호 ── */
+function unlock() {
+  UNLOCKED = true;
+  $("gate").hidden = true;
+  $("unlocked").hidden = false;
+  start();
+}
+function tryPw() {
+  if ($("pw").value.trim() === PASSWORD) {
+    try { localStorage.setItem(K_GATE, "1"); } catch (e) {}
+    $("pwErr").hidden = true;
+    unlock();
+  } else {
+    $("pwErr").hidden = false;
+    $("pw").value = "";
+    $("pw").focus();
+  }
+}
+$("pwBtn").addEventListener("click", tryPw);
+$("pw").addEventListener("keydown", e => { if (e.key === "Enter") tryPw(); });
+// 한 번 들어오면 이 브라우저에서는 다음부터 묻지 않는다
+{
+  let passed = false;
+  try { passed = localStorage.getItem(K_GATE) === "1"; } catch (e) {}
+  if (passed) unlock(); else $("pw").focus();
+}
 </script>
 </body>
 </html>
